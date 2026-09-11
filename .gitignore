@@ -1,0 +1,9 @@
+# Never commit study data. The app reads files in the browser; none belong here.
+*.xlsx
+*.xls
+*.csv
+*.docx
+*.pdf
+data/
+.DS_Store
+node_modules/
