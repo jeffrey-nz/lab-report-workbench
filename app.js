@@ -136,6 +136,7 @@ function ingest(sheets, name) {
 }
 
 function renderLoadSummary() {
+  $("#what").hidden = true;
   const bad = state.issues.filter((i) => i.severity === "error").length;
   $("#load-summary").replaceChildren(el("div", { class: "card" },
     el("div", { class: "draft-head" },
