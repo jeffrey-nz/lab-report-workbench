@@ -1,0 +1,11 @@
+{
+  "name": "lab-report-workbench",
+  "version": "1.0.0",
+  "description": "Turn a course data workbook into checked figures, the right statistical test, and a drafted figure legend.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/"
+  },
+  "license": "MIT"
+}

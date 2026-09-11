@@ -1,6 +1,6 @@
 /* check.js — what the workbook actually contains, and what is wrong with it. */
 
-import { el, emptyState } from "../dom.js";
+import { el, emptyState, setChildren } from "../dom.js";
 import { state } from "../state.js";
 import { saveTidyCsv, savePrismCsv } from "../exports.js";
 
@@ -40,11 +40,11 @@ export const view = {
   id: "check",
   render(root, { go }) {
     if (!state.loaded) {
-      root.replaceChildren(emptyState("No workbook yet", "Load a file on the first step."));
+      setChildren(root, emptyState("No workbook yet", "Load a file on the first step."));
       return;
     }
     const errors = state.issues.filter((i) => i.severity === "error").length;
-    root.replaceChildren(
+    setChildren(root, 
       el("div", { class: "view-head" },
         el("h2", {}, "What the workbook actually contains"),
         el("p", {}, "Everything below is recomputed from the individual animal values. Where the workbook's own Avg, StDev or StErr cells disagree with the animals above them, that is flagged here rather than carried into your figures.")),

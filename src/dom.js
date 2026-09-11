@@ -30,7 +30,16 @@ export function append(node, kids) {
   return node;
 }
 
-export const frag = (...kids) => append(document.createDocumentFragment(), kids);
+/**
+ * Replace a node's children, dropping nullish entries.
+ * Node.replaceChildren() renders a bare `null` as the text "null", so views
+ * that build children conditionally must go through here.
+ */
+export function setChildren(node, ...kids) {
+  const keep = kids.flat(3).filter((k) => k !== null && k !== undefined && k !== false);
+  node.replaceChildren(...keep.map((k) => (k.nodeType ? k : String(k))));
+  return node;
+}
 
 export const slug = (s) => String(s).toLowerCase()
   .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);

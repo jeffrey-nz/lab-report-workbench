@@ -1,7 +1,7 @@
 /* app.js — the shell: theme, step navigation, and handing control to a view.
    Everything else lives in src/views and src/lib. */
 
-import { el, $, store } from "./dom.js";
+import { el, $, store, setChildren } from "./dom.js";
 import { state, subscribe, update } from "./state.js";
 import { view as loadView } from "./views/load.js";
 import { view as checkView } from "./views/check.js";
@@ -32,7 +32,7 @@ function go(id) {
 }
 
 function renderNav() {
-  nav.replaceChildren(...VIEWS.map((v, i) => {
+  setChildren(nav, ...VIEWS.map((v, i) => {
     const active = state.step === v.id;
     const reached = state.loaded && VIEWS.findIndex((x) => x.id === state.step) > i;
     return el("button", {

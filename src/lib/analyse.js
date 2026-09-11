@@ -4,16 +4,15 @@
    animals that were measured repeatedly. */
 
 import * as S from "./stats.js";
+import { groupMeta } from "./parse.js";
 
 export const seriesKey = (r) => `${r.sheet}|${r.tissue || ""}|${r.analyte}`;
 
 /** Chow before HFD, then HFD by duration, then any age-matched chow control. */
 export function orderGroups(labels, records) {
-  const meta = new Map();
-  for (const r of records) if (!meta.has(r.groupLabel))
-    meta.set(r.groupLabel, { diet: r.diet, weeks: r.weeks });
+  const meta = groupMeta(records);
   return [...labels].sort((a, b) => {
-    const A = meta.get(a) || {}, B = meta.get(b) || {};
+    const A = meta(a), B = meta(b);
     const wa = A.weeks ?? 0, wb = B.weeks ?? 0;
     if (wa !== wb) return wa - wb;
     const da = A.diet === "NCD" ? 1 : 0, db = B.diet === "NCD" ? 1 : 0;
@@ -23,11 +22,9 @@ export function orderGroups(labels, records) {
 }
 
 export function pickControl(groups, records) {
-  const meta = new Map();
-  for (const r of records) if (!meta.has(r.groupLabel))
-    meta.set(r.groupLabel, { diet: r.diet, weeks: r.weeks });
-  const chow = groups.filter((g) => meta.get(g)?.diet === "NCD");
-  if (chow.length) return chow.sort((a, b) => (meta.get(a).weeks ?? 0) - (meta.get(b).weeks ?? 0))[0];
+  const meta = groupMeta(records);
+  const chow = groups.filter((g) => meta(g).diet === "NCD");
+  if (chow.length) return chow.sort((a, b) => (meta(a).weeks ?? 0) - (meta(b).weeks ?? 0))[0];
   return groups[0];
 }
 
@@ -256,8 +253,6 @@ const sentence = (s) => (/^[A-Z0-9]{2,5}\b/.test(s) || /^IL-|^TNF-|^CD\d/.test(s
 export function panelTitle(sel) {
   return [sel.tissue, sel.analyte].filter(Boolean).join(" ");
 }
-
-export { lower as lowerFirst };
 
 export function axisLabel(sel) {
   // the marker's note: never just "protein" — name the analyte and the unit

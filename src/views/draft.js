@@ -1,7 +1,7 @@
 /* draft.js — the text that has to accompany the figure, pre-filled with the
    real numbers. Edits are kept in state so switching steps does not lose them. */
 
-import { el, copyButton, emptyState } from "../dom.js";
+import { el, copyButton, emptyState, setChildren } from "../dom.js";
 import { state, update } from "../state.js";
 import { draftLegend, draftResults, statsSentence } from "../lib/analyse.js";
 import { saveDrafts } from "../exports.js";
@@ -52,14 +52,14 @@ export const view = {
   id: "draft",
   render(root, { go }) {
     if (!state.panels.length) {
-      root.replaceChildren(
+      setChildren(root, 
         el("div", { class: "view-head" }, el("h2", {}, "Drafted text")),
         el("div", { class: "card" },
           emptyState("Nothing to draft yet", "Build a figure and the text follows from it.")));
       return;
     }
     const n = state.figNumber;
-    root.replaceChildren(
+    setChildren(root, 
       el("div", { class: "view-head" },
         el("h2", {}, "Drafted text"),
         el("p", {}, "A starting point carrying the real numbers, in the structure a figure legend and a results paragraph are marked on. Edit it into your own words before submitting.")),

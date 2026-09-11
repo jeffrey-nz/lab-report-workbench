@@ -1,6 +1,6 @@
 /* submit.js — the pre-submission checklist, with progress kept per browser. */
 
-import { el, slug, store } from "../dom.js";
+import { el, slug, store, setChildren } from "../dom.js";
 import { CHECKLIST } from "./../data/checklist.js";
 
 const KEY = "lrw-checks";
@@ -39,7 +39,7 @@ export const view = {
           el("div", {}, el("label", { for: id }, item.do), el("p", {}, item.why)));
       })));
 
-    root.replaceChildren(
+    setChildren(root, 
       el("div", { class: "view-head" },
         el("h2", {}, "Before you submit"),
         el("p", {}, "The points that most often cost marks on a scientific report, and the ones this tool cannot do for you.")),

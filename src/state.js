@@ -137,6 +137,3 @@ export function setFigureOption(patch) {
   rebuild();
   emit("figure");
 }
-
-/** True when every chosen panel produced a usable analysis. */
-export const panelsValid = () => state.panels.every((p) => p.analysis?.ok);

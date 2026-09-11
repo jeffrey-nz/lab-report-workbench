@@ -4,7 +4,7 @@ import { state } from "./state.js";
 import { svgToPng } from "./lib/charts.js";
 import { statsSentence, draftLegend, draftResults } from "./lib/analyse.js";
 import { seriesNames, panelFullName } from "./labels.js";
-import { fmtP, stars } from "./lib/stats.js";
+import { stars } from "./lib/stats.js";
 import { toast } from "./dom.js";
 
 export function download(blob, filename) {
@@ -171,5 +171,3 @@ export async function saveEverything() {
   savePrismCsv();
   toast("Figure, statistics, draft and Prism table saved");
 }
-
-export { fmtP };

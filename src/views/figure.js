@@ -1,7 +1,7 @@
 /* figure.js — the builder. Controls on the left, a live figure on the right.
    Only the parts that changed are redrawn, so a checkbox keeps focus. */
 
-import { el, $, emptyState } from "../dom.js";
+import { el, $, emptyState, setChildren } from "../dom.js";
 import * as St from "../state.js";
 import { state } from "../state.js";
 import { groupColors } from "../lib/charts.js";
@@ -114,14 +114,14 @@ function options() {
     el("div", { class: "field" },
       el("label", { for: "opt-cols" }, "Columns"),
       el("select", {
-        id: "opt-cols",
+        id: "opt-cols", "data-focus-key": "opt:cols",
         onchange: (e) => St.setFigureOption({ cols: +e.target.value })
       }, ...[1, 2, 3, 4].map((n) =>
         el("option", { value: n, selected: n === state.cols }, n)))),
     el("div", { class: "field" },
       el("label", { for: "opt-control" }, "Compared against"),
       el("select", {
-        id: "opt-control",
+        id: "opt-control", "data-focus-key": "opt:control",
         onchange: (e) => St.setFigureOption({ control: e.target.value })
       }, ...state.groups.map((g) =>
         el("option", { value: g, selected: g === state.control }, g)))),
@@ -129,7 +129,7 @@ function options() {
       el("label", { for: "opt-fignum" }, "Figure number"),
       el("input", {
         type: "number", id: "opt-fignum", min: 1, max: 40, value: state.figNumber,
-        style: "width:78px",
+        style: "width:78px", "data-focus-key": "opt:fignum",
         oninput: (e) => St.setFigureOption({ figNumber: +e.target.value || 1 })
       })));
 }
@@ -168,10 +168,10 @@ export const view = {
   id: "figure",
   render(root, { go }) {
     if (!state.loaded) {
-      root.replaceChildren(emptyState("No workbook yet", "Load a file on the first step."));
+      setChildren(root, emptyState("No workbook yet", "Load a file on the first step."));
       return;
     }
-    root.replaceChildren(
+    setChildren(root, 
       el("div", { class: "view-head" },
         el("h2", {}, "Build the figure"),
         el("p", {}, "Tick the measurements to become panels and the groups to compare. Panels are drawn into one image, lettered A, B, C, so a multi-panel figure exports as a single file.")),

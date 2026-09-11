@@ -1,6 +1,6 @@
 /* load.js — the first screen: take a workbook, or show what the tool does. */
 
-import { el, $, toast } from "../dom.js";
+import { el, $, toast, setChildren } from "../dom.js";
 import { state, loadRecords, update } from "../state.js";
 import { sheetsToGrids, parseWorkbook } from "../lib/parse.js";
 import { demoWorkbook } from "../lib/demo.js";
@@ -107,7 +107,7 @@ function summary(go) {
 export const view = {
   id: "load",
   render(root, { go }) {
-    root.replaceChildren(
+    setChildren(root, 
       el("div", { class: "view-head" },
         el("h2", {}, "Load the data workbook"),
         el("p", {}, "Drop in the spreadsheet you were given. The workbook is read in your browser — nothing is uploaded anywhere.")),

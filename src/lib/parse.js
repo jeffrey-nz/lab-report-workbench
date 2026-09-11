@@ -144,6 +144,13 @@ function findTimeRun(measureCols, headerCells, bands) {
   const best = candidates.reduce((a, b) => (b.end - b.start > a.end - a.start ? b : a));
   let { start, end, levels } = best;
 
+  // The columns are levels of one axis, so the axis has one unit. Take it from
+  // whichever reading found one — a header like "30m", or a band label such as
+  // "TIME In Days" sitting beside bare day numbers.
+  const unit = candidates.map((c) => c.levels.find((l) => l.unit)?.unit).find(Boolean)
+    || unitFromText([...bands.map((b) => b.raw), headerCells]);
+  if (unit) levels = levels.map((l) => ({ ...l, unit: l.unit || unit }));
+
   // Extend left over unlabelled columns repeating the run's header text.
   const runHeader = headerCells[measureCols[start]];
   const gaps = levels.slice(1).map((l, i) => l.value - levels[i].value).sort((x, y) => x - y);
@@ -158,6 +165,21 @@ function findTimeRun(measureCols, headerCells, bands) {
   }
   return { cols: measureCols.slice(start, end + 1), levels, inferred,
            source: best.source, first: start, last: end };
+}
+
+/** A time unit named in words anywhere near the header, e.g. "TIME In Days". */
+function unitFromText(rowGroups) {
+  for (const row of rowGroups) {
+    for (const cell of row || []) {
+      const s = norm(cell);
+      if (!s || TIME_RE.test(s)) continue;
+      if (/\bmin(ute)?s?\b/i.test(s)) return "min";
+      if (/\bhours?\b|\bhrs?\b/i.test(s)) return "h";
+      if (/\bdays?\b/i.test(s)) return "day";
+      if (/\bweeks?\b|\bwks?\b/i.test(s)) return "week";
+    }
+  }
+  return null;
 }
 
 /* ---------- the parser ---------- */
@@ -404,6 +426,22 @@ function colLetter(c) {
   return s;
 }
 
+/**
+ * What a group label means: taken from the parsed records where possible, and
+ * read back off the label itself when the label did not come from this data.
+ * Returns a lookup function, so callers pay for the index once.
+ */
+export function groupMeta(records) {
+  const known = new Map();
+  for (const r of records) if (!known.has(r.groupLabel))
+    known.set(r.groupLabel, { diet: r.diet, weeks: r.weeks });
+  return (label) => {
+    if (known.has(label)) return known.get(label);
+    const read = readGroupLabel(label);
+    return { diet: read.diet, weeks: read.weeks };
+  };
+}
+
 /* ---------- shaping for analysis ---------- */
 
 /** Distinct series present: one entry per (tissue, analyte, sheet). */
@@ -422,21 +460,4 @@ export function seriesIndex(records) {
     if (r.x != null) e.hasTime = true;
   }
   return [...map.values()].map((e) => ({ ...e, groups: [...e.groups] }));
-}
-
-/** Animals measured in every group of a series — the complete-case cohort. */
-export function completeCases(records, key) {
-  const rows = records.filter((r) => `${r.sheet}|${r.tissue || ""}|${r.analyte}` === key && !r.excluded);
-  const byGroup = new Map();
-  for (const r of rows) {
-    if (!byGroup.has(r.groupLabel)) byGroup.set(r.groupLabel, new Set());
-    byGroup.get(r.groupLabel).add(r.subject);
-  }
-  const groups = [...byGroup.keys()];
-  if (groups.length < 2) return { groups, complete: null, allSubjects: new Set() };
-  let inter = null;
-  for (const s of byGroup.values()) inter = inter == null ? new Set(s) : new Set([...inter].filter((x) => s.has(x)));
-  const all = new Set(rows.map((r) => r.subject));
-  return { groups, complete: inter, allSubjects: all,
-           isRepeated: inter.size >= 3 && inter.size >= all.size * 0.3 };
 }

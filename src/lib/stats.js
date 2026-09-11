@@ -59,17 +59,9 @@ export function tTwoTailed(t, df) {
 
 /** Upper-tail p for F on (df1, df2) — the ANOVA p-value. */
 export function fSurvival(F, df1, df2) {
-  if (!isFinite(F) || F <= 0 || df1 <= 0 || df2 <= 0) return NaN;
+  if (!isFinite(F) || F < 0 || df1 <= 0 || df2 <= 0) return NaN;
+  if (F === 0) return 1;          // groups that do not differ at all
   return incBeta(df2 / 2, df1 / 2, df2 / (df2 + df1 * F));
-}
-
-/** Two-tailed p for the standard normal. */
-export function normalTwoTailed(z) {
-  const t = 1 / (1 + 0.2316419 * Math.abs(z));
-  const d = 0.3989422804014327 * Math.exp(-z * z / 2);
-  const p = d * t * (0.319381530 + t * (-0.356563782 + t * (1.781477937 +
-            t * (-1.821255978 + t * 1.330274429))));
-  return 2 * p;
 }
 
 /* ---------- descriptives ---------- */
@@ -116,14 +108,6 @@ export function tTest(a, b, { welch = true } = {}) {
   return { test: welch ? "Welch's unpaired t-test" : "Unpaired Student's t-test",
            t, df, p: tTwoTailed(t, df), meanDiff: ma - mb,
            cohensD: (ma - mb) / pooledSd, groups: [describe(a), describe(b)] };
-}
-
-/** Paired t-test on matched observations. */
-export function pairedTTest(a, b) {
-  const d = a.map((x, i) => x - b[i]);
-  const t = mean(d) / sem(d), df = d.length - 1;
-  return { test: "Paired t-test", t, df, p: tTwoTailed(t, df),
-           meanDiff: mean(d), n: d.length };
 }
 
 /** One-way ANOVA across independent groups. */
@@ -280,49 +264,6 @@ export function twoWayFullRmAnova(subjects, aLabels, bLabels,
 }
 
 /**
- * Two-way ANOVA for fully independent observations (no repeated measures) —
- * balanced or unbalanced, computed on cell means with weighted SS.
- */
-export function twoWayAnova(cells, rowLabels, colLabels,
-                            { rowName = "Factor A", colName = "Factor B" } = {}) {
-  const a = rowLabels.length, b = colLabels.length;
-  const all = cells.flat(2);
-  const N = all.length, grand = mean(all);
-  const cellMean = cells.map(r => r.map(c => (c.length ? mean(c) : NaN)));
-  const cellN = cells.map(r => r.map(c => c.length));
-  if (cellMean.flat().some(isNaN)) return null;
-
-  const harmonic = a * b / cellN.flat().reduce((s, n) => s + 1 / n, 0);
-  const rowMeans = cellMean.map(r => mean(r));
-  const colMeans = colLabels.map((_, j) => mean(cellMean.map(r => r[j])));
-  const unweightedGrand = mean(cellMean.flat());
-
-  let ssA = 0, ssB = 0, ssAB = 0;
-  for (let i = 0; i < a; i++) ssA += harmonic * b * (rowMeans[i] - unweightedGrand) ** 2;
-  for (let j = 0; j < b; j++) ssB += harmonic * a * (colMeans[j] - unweightedGrand) ** 2;
-  for (let i = 0; i < a; i++)
-    for (let j = 0; j < b; j++)
-      ssAB += harmonic * (cellMean[i][j] - rowMeans[i] - colMeans[j] + unweightedGrand) ** 2;
-
-  let ssW = 0;
-  for (let i = 0; i < a; i++)
-    for (let j = 0; j < b; j++)
-      for (const v of cells[i][j]) ssW += (v - cellMean[i][j]) ** 2;
-
-  const dfA = a - 1, dfB = b - 1, dfAB = dfA * dfB, dfW = N - a * b;
-  const msW = ssW / dfW;
-  const row = (name, ss, df) => {
-    const F = (ss / df) / msW;
-    return { name, ss, df, ms: ss / df, F, dfError: dfW, p: fSurvival(F, df, dfW) };
-  };
-  return {
-    test: "Ordinary two-way ANOVA", a, b, N, msError: msW, dfError: dfW,
-    effects: { between: row(rowName, ssA, dfA), within: row(colName, ssB, dfB),
-               interaction: row(`${colName} × ${rowName}`, ssAB, dfAB) }
-  };
-}
-
-/**
  * Šídák-corrected pairwise comparisons against a pooled error term.
  * `comparisons` = [{ label, a:{mean,n}, b:{mean,n} }]. Matches the family of
  * tests Prism labels "Šídák's multiple comparisons test".
@@ -337,25 +278,6 @@ export function sidakPairwise(comparisons, msError, dfError) {
     return { label: c.label, group: c.group, x: c.x, t, df: dfError,
              diff: c.a.mean - c.b.mean, pRaw, p: pAdj, stars: stars(pAdj) };
   });
-}
-
-/** Holm–Šídák step-down on independent two-sample comparisons. */
-export function holmSidak(comparisons) {
-  const m = comparisons.length;
-  const raw = comparisons.map(c => {
-    const r = tTest(c.aValues, c.bValues);
-    return { label: c.label, t: r.t, df: r.df, diff: r.meanDiff, pRaw: r.p };
-  });
-  const order = raw.map((r, i) => i).sort((x, y) => raw[x].pRaw - raw[y].pRaw);
-  let running = 0;
-  const out = raw.map(r => ({ ...r }));
-  order.forEach((idx, rank) => {
-    const adj = 1 - (1 - raw[idx].pRaw) ** (m - rank);
-    running = Math.max(running, adj);
-    out[idx].p = Math.min(1, running);
-    out[idx].stars = stars(out[idx].p);
-  });
-  return out;
 }
 
 /** Grubbs' test for a single outlier — serves the "aberrant data" rubric line. */
@@ -396,18 +318,27 @@ export function stars(p) {
   return "ns";
 }
 
-/** Marker's rule: 2 dp when not significant; 2 significant figures when it is,
-    keeping enough digits that the reader can see which side of 0.05 it falls. */
+/**
+ * Report a p-value with the digits that matter and no more: two decimals when
+ * it is not significant, two significant figures when it is. A p-value is never
+ * shown rounded to the far side of 0.05, or as a bare "0.05", because that is
+ * the one place the reader draws a conclusion from the digits.
+ */
 export function fmtP(p) {
   if (!isFinite(p)) return "n/a";
   if (p < 0.0001) return "p < 0.0001";
-  if (p < 0.05) return "p = " + trimZeros(p.toPrecision(2));
-  if (p < 0.06) return "p = " + p.toFixed(3);
-  return "p = " + p.toFixed(2);
+  const significant = p < 0.05;
+  for (let digits = 2; digits <= 6; digits++) {
+    const shown = significant ? trimZeros(p.toPrecision(digits)) : p.toFixed(digits);
+    const value = Number(shown);
+    if (value === 0.05 && p !== 0.05) continue;      // ambiguous either way
+    if ((value < 0.05) === significant) return "p = " + shown;
+  }
+  return "p = " + p.toPrecision(6);
 }
 
 function trimZeros(s) {
-  return s.includes("e") ? Number(s).toFixed(4) : s.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+  return s.includes("e") ? Number(s).toFixed(6) : s.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
 }
 
 export function fmtF(effect) {

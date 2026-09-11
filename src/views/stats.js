@@ -1,6 +1,6 @@
 /* stats.js — the full statistical output for every panel in the figure. */
 
-import { el, emptyState } from "../dom.js";
+import { el, emptyState, setChildren } from "../dom.js";
 import { state } from "../state.js";
 import { seriesNames, panelName, panelHint } from "../labels.js";
 import { fmtP, stars } from "../lib/stats.js";
@@ -81,10 +81,9 @@ function summaryTable(analysis, sel) {
         el("td", { class: "num" }, isFinite(p.sem) ? p.sem.toPrecision(3) : "—")))))));
 }
 
-function panelCard(panel, index) {
+function panelCard(panel, index, names) {
   const { sel, analysis } = panel;
   const letter = String.fromCharCode(65 + index);
-  const names = seriesNames();
   const hint = panelHint(panel, names);
   const card = el("div", { class: "card" });
 
@@ -135,18 +134,19 @@ export const view = {
   id: "stats",
   render(root, { go }) {
     if (!state.panels.length) {
-      root.replaceChildren(
+      setChildren(root, 
         el("div", { class: "view-head" }, el("h2", {}, "Statistics")),
         el("div", { class: "card" },
           emptyState("No panels yet", "Choose a measurement on the Figure step and the tests follow.")));
       return;
     }
-    root.replaceChildren(
+    const names = seriesNames();
+    setChildren(root, 
       el("div", { class: "view-head" },
         el("h2", {}, "Statistics"),
         el("p", {}, "The design of your selection chooses the test: animals measured more than once are treated as repeated measures rather than as independent samples. The overall test is reported first, the multiple comparisons after it.")),
       el("div", { class: "stack" },
-        ...state.panels.map(panelCard),
+        ...state.panels.map((p, i) => panelCard(p, i, names)),
         el("div", { class: "btn-group" },
           el("button", { type: "button", class: "btn btn--ghost", onclick: saveStatsCsv },
             "Download all statistics (CSV)"),

@@ -25,6 +25,8 @@ const RAMPS = {
 
 const SHAPES = ["circle", "square", "triangle", "diamond", "down", "cross"];
 
+import { groupMeta } from "./parse.js";
+
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const n1 = (v) => Number(v).toFixed(1);
 
@@ -52,19 +54,17 @@ const fmtTick = (v, step) => {
 /* ---------- colour and shape assignment ---------- */
 
 export function groupColors(groups, records) {
-  const meta = new Map();
-  for (const r of records) if (!meta.has(r.groupLabel))
-    meta.set(r.groupLabel, { diet: r.diet, weeks: r.weeks });
+  const meta = groupMeta(records);
   const byDiet = new Map();
   for (const g of groups) {
-    const d = meta.get(g)?.diet || "other";
+    const d = meta(g).diet || "other";
     byDiet.set(d, [...(byDiet.get(d) || []), g]);
   }
   const out = {};
   for (const [diet, list] of byDiet) {
     const ramp = RAMPS[diet] || RAMPS.other;
     if (list.length === 1) { out[list[0]] = DIET_COLORS[diet] || DIET_COLORS.other; continue; }
-    const ordered = [...list].sort((a, b) => (meta.get(a)?.weeks ?? 0) - (meta.get(b)?.weeks ?? 0));
+    const ordered = [...list].sort((a, b) => (meta(a).weeks ?? 0) - (meta(b).weeks ?? 0));
     // with only two steps in play, skip the palest end: a near-white line reads
     // as faint rather than as "early"
     const first = ordered.length <= 2 ? 1 : 0;
@@ -239,6 +239,7 @@ function linePanel(box, sel, analysis, colors, shapes, labels, m) {
       const p = s.points.find((q) => q.x === xv);
       return p && p.n ? yScale(p.mean + (p.sem || 0)) : Infinity;
     }));
+    if (!isFinite(top)) continue;      // nothing drawn at this time point
     const half = c.stars.length * m.star * 0.28;
     const ax = Math.min(px + pw - half, Math.max(px + half, xScale(xv)));
     out.push(`<text x="${n1(ax)}" y="${n1(Math.max(py + m.star * 0.8, top - 7 * m.k))}" text-anchor="middle" font-family="${FONT}" font-size="${m.star}" font-weight="700" fill="${INK}">${c.stars}</text>`);
@@ -353,15 +354,13 @@ export function renderFigure(panels, { cols = 2, panelW = 340, panelH = 265,
   const body = [];
   const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-  const weekOf = new Map();
-  for (const r of records) if (!weekOf.has(r.groupLabel))
-    weekOf.set(r.groupLabel, { w: r.weeks ?? 0, d: r.diet });
+  const meta = groupMeta(records);
   const allGroups = [...new Set(panels.flatMap((p) =>
     p.analysis?.ok ? p.analysis.summary.map((s) => s.group) : []))]
     .sort((a, b) => {
-      const A = weekOf.get(a) || {}, B = weekOf.get(b) || {};
-      if ((A.d || "") !== (B.d || "")) return (A.d || "") < (B.d || "") ? -1 : 1;
-      return (A.w ?? 0) - (B.w ?? 0);
+      const A = meta(a), B = meta(b);
+      if ((A.diet || "") !== (B.diet || "")) return (A.diet || "") < (B.diet || "") ? -1 : 1;
+      return (A.weeks ?? 0) - (B.weeks ?? 0);
     });
   const colors = groupColors(allGroups, records);
   const shapes = groupShapes(allGroups);

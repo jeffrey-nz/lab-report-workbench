@@ -99,6 +99,39 @@ system:
 python3 -m http.server 8000     # then open http://localhost:8000
 ```
 
+## Tests
+
+```sh
+node --test tests/              # 145 unit tests, no dependencies
+```
+
+The suite covers four things:
+
+- **The statistics**, against values from SciPy, statsmodels and pingouin, and
+  against the published Grubbs' tables. Agreement is asserted to 1e-11 or better
+  for the distributions and every model.
+- **The parser**, against hand-built grids carrying the quirks real course
+  sheets have: a wrong `Avg`, a `#VALUE!` cell, a malformed number, a row marked
+  *don't use*, a group label missing its diet, and day numbers that only appear
+  on a band row.
+- **The figures**, by parsing the generated SVG: well-formed tags, quoted
+  attributes, no `NaN` in any coordinate, markup in a label escaped, and colour
+  that follows the group rather than its position.
+- **The structure**, so the codebase does not drift back to shapes that caused
+  bugs — no inline styles or scripts in `index.html`, no DOM in `src/lib`, and
+  no direct `replaceChildren` (a `null` child renders as the text "null").
+
+A browser smoke test drives the real page through every step and asserts that no
+placeholder text reaches the DOM:
+
+```sh
+npm install --no-save puppeteer
+python3 -m http.server 8731 &
+node tests/smoke.mjs http://localhost:8731/index.html
+```
+
+Both run on every push — see `.github/workflows/test.yml`.
+
 ## Licence
 
 MIT.

@@ -1,0 +1,32 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run the test suite
+        run: node --test tests/
+
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install a browser driver
+        run: npm install --no-save puppeteer
+      - name: Drive the app end to end
+        run: |
+          npx --yes http-server -p 8731 -s . &
+          npx wait-on http://127.0.0.1:8731/index.html
+          node tests/smoke.mjs http://127.0.0.1:8731/index.html
