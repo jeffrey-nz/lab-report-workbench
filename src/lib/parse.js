@@ -326,10 +326,12 @@ function tidyTissue(s) {
 }
 
 function tidyAnalyte(s) {
-  const t = norm(s);
+  // the unit in a header like "BW (g)" is captured separately, so drop it here
+  const t = norm(s).replace(/\s*\([^)]*\)\s*$/, "").trim() || norm(s);
   const map = { "il1b": "IL-1β", "il-1b": "IL-1β", "il1-b": "IL-1β", "il-1β": "IL-1β",
                 "tnfa": "TNF-α", "tnf-a": "TNF-α", "tnfα": "TNF-α",
-                "il6": "IL-6", "il-6": "IL-6", "cd68": "CD68" };
+                "il6": "IL-6", "il-6": "IL-6", "cd68": "CD68",
+                "bw": "Body weight", "body weight": "Body weight" };
   return map[t.toLowerCase()] || t;
 }
 

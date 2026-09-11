@@ -1,0 +1,116 @@
+/* tokens.css — the whole palette and type scale, in one place.
+   Every colour is declared on bare :root first; the theme blocks below only
+   redefine tokens, never component rules, so an unstamped document (the default
+   "system" setting) always resolves a complete set. */
+
+:root {
+  /* surfaces — neutrals carry a slight cool bias toward the accent */
+  --bg:          #f3f5f5;
+  --surface:     #ffffff;
+  --surface-2:   #eaeeee;
+  --surface-3:   #e0e5e5;
+
+  /* ink */
+  --ink:         #12181a;
+  --ink-2:       #48565a;
+  --ink-3:       #72817f;
+
+  /* lines */
+  --line:        #dce2e2;
+  --line-2:      #c2cccc;
+
+  /* accent — instrument teal, deliberately clear of the data blue and orange */
+  --accent:      #0f5d56;
+  --accent-2:    #0a423d;
+  --accent-soft: #dbecea;
+  --on-accent:   #ffffff;
+
+  /* semantic, separate from the accent and from every series colour */
+  --err:  #a8291d; --err-soft:  #fbeae7;
+  --warn: #8a5200; --warn-soft: #fbf0dc;
+  --ok:   #0d6b45; --ok-soft:   #e0f1e8;
+
+  /* series — categorical slots 1 and 2 of the validated palette */
+  --ncd: #2a78d6;
+  --hfd: #eb6834;
+
+  /* type */
+  --sans:  'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --serif: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+  --mono:  'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --t-xs: 11.5px;
+  --t-sm: 12.5px;
+  --t-md: 14px;
+  --t-lg: 15.5px;
+  --t-xl: 21px;
+
+  /* shape */
+  --r-sm: 5px;
+  --r:    8px;
+  --r-lg: 12px;
+  --shadow:    0 1px 2px rgb(16 32 32 / 6%), 0 6px 18px rgb(16 32 32 / 5%);
+  --shadow-lg: 0 2px 6px rgb(16 32 32 / 8%), 0 16px 40px rgb(16 32 32 / 8%);
+
+  /* rhythm */
+  --gap:   16px;
+  --gap-lg: 24px;
+  --gutter: 20px;
+  --measure: 68ch;
+}
+
+/* dark, for the OS setting — an explicit light stamp must still win */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:        #0e1314;
+    --surface:   #171d1f;
+    --surface-2: #1f2729;
+    --surface-3: #283133;
+
+    --ink:       #e9eeee;
+    --ink-2:     #a2aeb0;
+    --ink-3:     #78868a;
+
+    --line:      #293134;
+    --line-2:    #394447;
+
+    --accent:      #4fb3a6;
+    --accent-2:    #7fcdc2;
+    --accent-soft: #15302d;
+    --on-accent:   #06201d;
+
+    --err:  #f0897e; --err-soft:  #321e1c;
+    --warn: #dfa254; --warn-soft: #2c2315;
+    --ok:   #6ac698; --ok-soft:   #152a21;
+
+    --shadow:    0 1px 2px rgb(0 0 0 / 40%), 0 6px 18px rgb(0 0 0 / 28%);
+    --shadow-lg: 0 2px 6px rgb(0 0 0 / 45%), 0 16px 40px rgb(0 0 0 / 38%);
+  }
+}
+
+/* dark, chosen explicitly — wins over a light OS setting */
+:root[data-theme="dark"] {
+  --bg:        #0e1314;
+  --surface:   #171d1f;
+  --surface-2: #1f2729;
+  --surface-3: #283133;
+
+  --ink:       #e9eeee;
+  --ink-2:     #a2aeb0;
+  --ink-3:     #78868a;
+
+  --line:      #293134;
+  --line-2:    #394447;
+
+  --accent:      #4fb3a6;
+  --accent-2:    #7fcdc2;
+  --accent-soft: #15302d;
+  --on-accent:   #06201d;
+
+  --err:  #f0897e; --err-soft:  #321e1c;
+  --warn: #dfa254; --warn-soft: #2c2315;
+  --ok:   #6ac698; --ok-soft:   #152a21;
+
+  --shadow:    0 1px 2px rgb(0 0 0 / 40%), 0 6px 18px rgb(0 0 0 / 28%);
+  --shadow-lg: 0 2px 6px rgb(0 0 0 / 45%), 0 16px 40px rgb(0 0 0 / 38%);
+}

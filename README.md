@@ -58,12 +58,37 @@ which is what Prism reports as *Šídák's multiple comparisons test*.
 
 ## Adapting it
 
-- **A different rubric:** edit `checklist.js` — it is a plain list of
+- **A different rubric:** edit `src/data/checklist.js` — a plain list of
   `{ do, why }` items grouped by section.
-- **A different workbook layout:** `parse.js` finds blocks by shape. The regular
-  expressions at the top (`ID_RE`, `STAT_RE`, `DIET_RE`, …) are the knobs.
-- **Different colours:** `charts.js` holds two one-hue ordinal ramps — hue carries
-  the diet, lightness carries time on diet.
+- **A different workbook layout:** `src/lib/parse.js` finds blocks by shape. The
+  regular expressions at the top (`ID_RE`, `STAT_RE`, `DIET_RE`, …) are the knobs.
+- **Different colours:** `styles/tokens.css` holds the interface palette;
+  `src/lib/charts.js` holds the two one-hue ordinal ramps used in figures — hue
+  carries the diet, lightness carries time on diet, and marker shape carries
+  identity again so the figure survives a greyscale print.
+
+## How the code is laid out
+
+```
+index.html              markup only — no inline styles or scripts
+styles/
+  tokens.css            palette, type scale, both themes
+  base.css              reset, document typography, page frame
+  components.css        buttons, chips, cards, tables, issues, toast
+  views.css             layout belonging to one screen
+src/
+  app.js                shell: theme, step navigation, focus restoration
+  state.js              one store; views read it and call update()
+  dom.js                el(), $, toast, safe localStorage
+  labels.js             how a measurement is named, everywhere
+  exports.js            PNG, SVG, CSV, Markdown, "save everything"
+  views/                one module per step
+  lib/                  parse, stats, analyse, charts, demo — no DOM
+  data/checklist.js     the pre-submission checklist
+```
+
+`src/lib` never touches the DOM, so the parser and the statistics can be run and
+tested from Node directly.
 
 ## Running it locally
 

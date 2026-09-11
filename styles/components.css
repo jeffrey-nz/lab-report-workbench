@@ -1,0 +1,229 @@
+/* components.css — the reusable pieces. Each owns its own spacing; none of them
+   reaches outside itself, so the cascade never has to fight over margins. */
+
+/* ---------- card ---------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.card-head h3 { font-size: var(--t-lg); }
+.card-head p  { margin-top: 4px; }
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  padding: 9px 15px;
+  font-weight: 500;
+  font-size: 13.5px;
+  transition: background .14s ease, border-color .14s ease;
+}
+.btn:hover { background: var(--accent-2); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.btn--ghost {
+  background: var(--surface-2);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.btn--ghost:hover { background: var(--surface-3); border-color: var(--line-2); }
+
+.btn--quiet {
+  background: none;
+  color: var(--ink-2);
+  border-color: transparent;
+  padding: 5px 9px;
+  font-size: var(--t-sm);
+}
+.btn--quiet:hover { background: var(--surface-2); color: var(--ink); }
+
+.btn--icon {
+  padding: 6px 8px;
+  min-width: 30px;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-size: var(--t-sm);
+  line-height: 1;
+}
+.btn--icon:hover:not(:disabled) { color: var(--ink); border-color: var(--line-2); }
+.btn--icon:disabled { opacity: .3; cursor: not-allowed; }
+
+.btn-group { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+
+/* ---------- chips ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13.5px;
+  user-select: none;
+  cursor: pointer;
+  transition: background .13s ease, border-color .13s ease;
+}
+.chip:hover { border-color: var(--line-2); background: var(--surface-2); }
+.chip input { position: absolute; opacity: 0; width: 0; height: 0; }
+.chip:has(input:checked) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-2);
+  font-weight: 500;
+}
+.chip:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chip .chip-hint { font-size: var(--t-sm); color: var(--ink-3); font-weight: 400; }
+.chip:has(input:checked) .chip-hint { color: var(--accent-2); opacity: .75; }
+.chip .swatch {
+  width: 10px; height: 10px; border-radius: 50%;
+  flex: none; background: var(--line-2);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 8%) inset;
+}
+
+/* ---------- form controls ---------- */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > label, .legend {
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: .055em;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+legend { padding: 0; margin-bottom: 9px; }
+
+select, input[type="number"], input[type="text"] {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 7px 10px;
+  font-size: 13.5px;
+}
+select:hover, input:hover { border-color: var(--line-2); }
+
+/* ---------- tables ---------- */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  font-weight: 500;
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: .045em;
+  color: var(--ink-2);
+}
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: var(--surface-2); }
+td.num, th.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+tr.is-sig td { background: var(--ok-soft); }
+tr.is-sig:hover td { background: var(--ok-soft); filter: brightness(0.98); }
+
+.stars { font-family: var(--mono); font-weight: 500; color: var(--ok); }
+.stars--ns { color: var(--ink-3); font-weight: 400; }
+
+/* ---------- issues ---------- */
+.issue {
+  display: flex;
+  gap: 13px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  align-items: flex-start;
+}
+.issue + .issue { margin-top: 9px; }
+.issue-tag {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: 3px 7px;
+  border-radius: 3px;
+  flex: none;
+  margin-top: 1px;
+}
+.issue-where { font-family: var(--mono); font-size: var(--t-sm); color: var(--ink-2); }
+.issue p { margin-top: 3px; color: var(--ink-2); }
+.issue--error { border-left-color: var(--err); }
+.issue--error .issue-tag { background: var(--err-soft); color: var(--err); }
+.issue--warn { border-left-color: var(--warn); }
+.issue--warn .issue-tag { background: var(--warn-soft); color: var(--warn); }
+.issue--info { border-left-color: var(--line-2); }
+.issue--info .issue-tag { background: var(--surface-2); color: var(--ink-3); }
+
+/* ---------- inline callout ---------- */
+.callout {
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  padding: 12px 14px;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+.callout strong { color: var(--ink); font-weight: 500; }
+.callout--warn { background: var(--warn-soft); color: var(--ink-2); }
+
+/* ---------- empty state ---------- */
+.empty {
+  text-align: center;
+  padding: 44px 20px;
+  color: var(--ink-3);
+}
+.empty strong { display: block; color: var(--ink-2); font-weight: 500; margin-bottom: 5px; }
+
+/* ---------- toast ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%) translateY(10px);
+  background: var(--ink);
+  color: var(--bg);
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease, transform .18s ease;
+  z-index: 50;
+}
+.toast.is-shown { opacity: 1; transform: translateX(-50%) translateY(0); }

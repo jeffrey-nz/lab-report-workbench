@@ -103,8 +103,11 @@ export function summarise(sel) {
 /* ---------- model choice ---------- */
 
 export function analyse(sel, { control } = {}) {
-  const ctrl = control || pickControl(sel.groups, sel.rows);
   if (sel.groups.length < 2) return { ok: false, reason: "Select at least two groups to compare." };
+  // a figure-wide control need not appear in every panel's own groups
+  const ctrl = control && sel.groups.includes(control)
+    ? control
+    : pickControl(sel.groups, sel.rows);
 
   if (sel.hasTime && sel.levels.length > 1) return timeCourse(sel, ctrl);
   return singleTimePoint(sel, ctrl);
@@ -247,6 +250,8 @@ const unitWord = (u) => (u === "min" ? " min" : u === "day" ? " days" : u === "w
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 /** Tissue names read as common nouns in prose, but WAT stays WAT. */
 const tissueWord = (t) => (/^[A-Z0-9]{2,5}$/.test(t) ? t : t.toLowerCase());
+/** Start of a sentence — leaving an acronym such as WAT or IL-6 alone. */
+const sentence = (s) => (/^[A-Z0-9]{2,5}\b/.test(s) || /^IL-|^TNF-|^CD\d/.test(s) ? s : cap(s));
 
 export function panelTitle(sel) {
   return [sel.tissue, sel.analyte].filter(Boolean).join(" ");
@@ -258,8 +263,8 @@ export function axisLabel(sel) {
   // the marker's note: never just "protein" — name the analyte and the unit
   const base = [sel.tissue, sel.analyte].filter(Boolean).join(" ");
   const unit = sel.unit ? ` (${sel.unit})` : "";
-  if (/fold/i.test(sel.unit || "")) return `${base} mRNA (fold change vs chow)`;
-  if (/ng per mg/i.test(sel.unit || "")) return `${base} protein (ng/mg tissue)`;
+  if (/fold/i.test(sel.unit || "")) return `${base} mRNA (fold vs chow)`;
+  if (/ng per mg/i.test(sel.unit || "")) return `${base} protein (ng/mg)`;
   return `${base}${unit}`;
 }
 
@@ -305,7 +310,7 @@ export function draftLegend(panels, figureNumber = 1) {
   const title = figureTitle(panels);
   const findings = panels.map((p, i) => {
     const f = panelFinding(p.sel, p.analysis);
-    return f ? `(${letters[i]}) ${/^[A-Z0-9]{2,5}\b/.test(f) ? f : cap(f)}` : null;
+    return f ? `(${letters[i]}) ${sentence(f)}` : null;
   }).filter(Boolean);
 
   const ns = panels.map((p) => p.analysis?.ok ? p.analysis.summary.flatMap((s) => s.points.map((q) => q.n)) : [])
@@ -421,16 +426,19 @@ export function draftResults(panels, figureNumber = 1) {
   lines.push(methodRecap(first.sel));
   panels.forEach((p, i) => {
     const f = panelFinding(p.sel, p.analysis);
-    if (f) lines.push(`${f.replace(/\.$/, "")} (Figure ${figureNumber}${A_Z[i]}).`);
+    if (f) lines.push(`${sentence(f).replace(/\.$/, "")} (Figure ${figureNumber}${A_Z[i]}).`);
   });
   const stat = panels.map((p, i) => p.analysis?.ok
-    ? `For ${panelTitle(p.sel)}, ${statsSentence(p.analysis).replace(/^[A-Z]/, (c) => c.toLowerCase())}`
+    ? `${panels.length > 1 ? `For panel ${A_Z[i]}, ` : ""}` +
+      (panels.length > 1
+        ? statsSentence(p.analysis).replace(/^[A-Z]/, (c) => c.toLowerCase())
+        : statsSentence(p.analysis))
     : null).filter(Boolean);
   lines.push(...stat);
   const odd = panels.flatMap((p) => p.analysis?.outliers || []);
   if (odd.length) {
     lines.push(`One value stood out from its group: animal ${odd[0].subject} in ${odd[0].group}` +
-      ` (Grubbs' test G = ${odd[0].G.toFixed(2)}, critical value ${odd[0].Gcrit.toFixed(2)}), retained in the analysis and visible in the figure.`);
+      ` (Grubbs' test G = ${odd[0].G.toFixed(3)} against a critical value of ${odd[0].Gcrit.toFixed(3)}), retained in the analysis and visible in the figure.`);
   }
   const dropped = panels.flatMap((p) => p.analysis?.dropped || []);
   if (dropped.length) {
