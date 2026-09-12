@@ -1,5 +1,7 @@
 /* dom.js — the small helpers every view uses. No application state lives here. */
 
+import { t } from "./i18n/index.js";
+
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
@@ -61,21 +63,21 @@ export function toast(message, { duration = 2600 } = {}) {
 export const emptyState = (heading, detail) =>
   el("div", { class: "empty" }, el("strong", {}, heading), detail);
 
-export function copyButton(getText, label = "Copy") {
+export function copyButton(getText, label = null) {
   return el("button", {
     type: "button", class: "btn btn--icon",
     onclick: async (e) => {
       const text = getText();
       try {
         await navigator.clipboard.writeText(text);
-        toast("Copied to the clipboard");
+        toast(t("msg.copied"));
       } catch {
         const ta = e.target.closest(".card")?.querySelector("textarea");
-        if (ta) { ta.select(); toast("Press ⌘C or Ctrl+C to copy"); }
-        else toast("This browser blocked the copy");
+        if (ta) { ta.select(); toast(t("msg.copyKeys")); }
+        else toast(t("msg.copyBlocked"));
       }
     }
-  }, label);
+  }, label ?? t("draft.copy"));
 }
 
 /** localStorage that never throws — private windows and blocked storage included. */

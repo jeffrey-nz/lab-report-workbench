@@ -5,6 +5,7 @@
 
 import * as S from "./stats.js";
 import { groupMeta } from "./parse.js";
+import { t as msg, list as listWordsFor } from "../i18n/index.js";
 
 export const seriesKey = (r) => `${r.sheet}|${r.tissue || ""}|${r.analyte}`;
 
@@ -104,7 +105,7 @@ export function summarise(sel, errorBars = "sem") {
 /* ---------- model choice ---------- */
 
 export function analyse(sel, { control, errorBars = "sem" } = {}) {
-  if (sel.groups.length < 2) return { ok: false, reason: "Select at least two groups to compare." };
+  if (sel.groups.length < 2) return { ok: false, reason: msg("reason.twoGroups") };
   // a figure-wide control need not appear in every panel's own groups
   const ctrl = control && sel.groups.includes(control)
     ? control
@@ -139,12 +140,12 @@ function timeCourse(sel, ctrl, errorBars) {
       const kept = new Set(g.subjects.map((s) => s.id));
       all.filter((s) => !kept.has(s)).forEach((s) => dropped.push(`${s} (${g.label})`));
     }
-    if (groups.some((g) => g.subjects.length < 2)) return { ok: false, reason: "Too few complete animals per group." };
+    if (groups.some((g) => g.subjects.length < 2)) return { ok: false, reason: msg("reason.tooFew") };
     const r = S.twoWayRmAnova(groups, levelLabels,
-      { betweenName: "Diet", withinName: timeName(sel) });
+      { betweenName: msg("effect.diet"), withinName: timeName(sel) });
     return finishTime(sel, r, ctrl, errorBars, dropped,
-      `${groups.map((g) => `${g.label} n=${g.subjects.length}`).join(", ")}`,
-      "Animals were measured at every time point, so time is a within-subject factor and diet a between-subject factor.");
+      msg("design.nPerGroup", { parts: groups.map((g) => msg("design.nGroup", { group: g.label, n: g.subjects.length })) }),
+      msg("design.mixed"));
   }
 
   // the same animals appear in more than one selected group: matched on both
@@ -160,24 +161,22 @@ function timeCourse(sel, ctrl, errorBars) {
   [...allSubjects].filter((s) => !complete.includes(s)).sort((a, b) => a - b)
     .forEach((s) => dropped.push(String(s)));
 
-  if (complete.length < 3) return { ok: false, reason:
-    "These groups mix animals that were re-tested over time with a separate group of control animals, " +
-    "so no single test fits them. Compare either two diets at one duration, or several durations within one diet." };
+  if (complete.length < 3) return { ok: false, reason: msg("reason.mixedDesign") };
   const r = S.twoWayFullRmAnova(matrixFor(sel, sel.groups, complete), sel.groups, levelLabels,
-    { aName: "Weeks on diet", bName: timeName(sel) });
+    { aName: msg("effect.weeksOnDiet"), bName: timeName(sel) });
   const restricted = { ...sel, subjectsBy: new Map(sel.groups.map((g) => [g, complete])) };
-  return finishTime(restricted, r, ctrl, errorBars, dropped, `n = ${complete.length} animals tested in every group`,
-    "The same animals appear in more than one selected group, so both factors are within-subject (repeated measures on both).");
+  return finishTime(restricted, r, ctrl, errorBars, dropped, msg("design.nComplete", { n: complete.length }),
+    msg("design.bothWithin"));
 }
 
 function timeName(sel) {
-  if (sel.xUnit === "min") return "Time after bolus";
-  if (sel.xUnit === "day" || sel.xUnit === "week") return "Time on diet";
-  return "Time";
+  if (sel.xUnit === "min") return msg("effect.timeAfterBolus");
+  if (sel.xUnit === "day" || sel.xUnit === "week") return msg("effect.timeOnDiet");
+  return msg("effect.time");
 }
 
 function finishTime(sel, r, ctrl, errorBars, dropped, nText, designNote) {
-  if (!r) return { ok: false, reason: "The selection is not a complete design — some group × time cells are empty." };
+  if (!r) return { ok: false, reason: msg("reason.incomplete") };
   const summary = summarise(sel, errorBars);
   // per-time-point comparison of every group against the control
   const comparisons = [];
@@ -199,14 +198,14 @@ function finishTime(sel, r, ctrl, errorBars, dropped, nText, designNote) {
 function singleTimePoint(sel, ctrl, errorBars) {
   const summary = summarise(sel, errorBars);
   const values = sel.groups.map((g) => summary.find((s) => s.group === g).points[0].values);
-  if (values.some((v) => v.length < 2)) return { ok: false, reason: "Each group needs at least two animals." };
+  if (values.some((v) => v.length < 2)) return { ok: false, reason: msg("reason.eachTwo") };
 
   if (sel.groups.length === 2) {
     const r = S.tTest(values[0], values[1]);
     return { ok: true, kind: "two-group", model: r, summary, control: ctrl, errorBars,
              posthoc: [], dropped: [],
-             nText: sel.groups.map((g, i) => `${g} n=${values[i].length}`).join(", "),
-             designNote: "Two independent groups of animals, so an unpaired t-test with Welch's correction for unequal variance.",
+             nText: msg("design.nPerGroup", { parts: sel.groups.map((g, i) => msg("design.nGroup", { group: g, n: values[i].length })) }),
+             designNote: msg("design.twoGroup"),
              outliers: findOutliers(sel, summary) };
   }
   const r = S.oneWayAnova(values);
@@ -218,8 +217,8 @@ function singleTimePoint(sel, ctrl, errorBars) {
   });
   const posthoc = S.sidakPairwise(comparisons, r.msWithin, r.df2);
   return { ok: true, kind: "one-way", model: r, summary, control: ctrl, posthoc, errorBars, dropped: [],
-           nText: sel.groups.map((g, i) => `n=${values[i].length}`).join(", "),
-           designNote: "A separate cohort of animals was killed at each time point, so the groups are independent.",
+           nText: msg("design.nPerGroup", { parts: sel.groups.map((g, i) => `n=${values[i].length}`) }),
+           designNote: msg("design.independent"),
            outliers: findOutliers(sel, summary) };
 }
 
@@ -248,10 +247,33 @@ function lower(s) {
   return /^[A-Z][a-z]/.test(t) ? t[0].toLowerCase() + t.slice(1) : t;
 }
 
-const unitWord = (u) => (u === "min" ? " min" : u === "day" ? " days" : u === "week" ? " weeks" : "");
+const unitWord = (u) => (u === "min" || u === "day" || u === "week" ? msg(`unit.${u}`) : "");
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
-/** Tissue names read as common nouns in prose, but WAT stays WAT. */
-const tissueWord = (t) => (/^[A-Z0-9]{2,5}$/.test(t) ? t : t.toLowerCase());
+
+/**
+ * Measurement names this tool generated (rather than read from the sheet) can
+ * be translated; names that came from the data — WAT, IL-1β — are left alone,
+ * because those abbreviations are what the literature uses in any language.
+ */
+const analyteName = (name) => {
+  const key = `analyte.${name}`;
+  const shown = msg(key);
+  return shown.startsWith("\u27e6") ? name : shown;
+};
+
+/** Sentences run together in Japanese and are spaced in English. */
+const joinSentences = (parts) => parts.filter(Boolean).join(msg("join.sentence"));
+/**
+ * Tissue names in prose. Known ones are named in the reader's language; an
+ * abbreviation the literature uses untranslated (WAT) stays as it is, and an
+ * unknown name is only lower-cased where the language has case at all.
+ */
+const tissueWord = (name) => {
+  const shown = msg(`tissue.${name}`);
+  if (!shown.startsWith("\u27e6")) return shown;
+  if (/^[A-Z0-9]{2,5}$/.test(name)) return name;
+  return msg("tissue.lowercaseUnknown") ? name.toLowerCase() : name;
+};
 /** Start of a sentence — leaving an acronym such as WAT or IL-6 alone. */
 const sentence = (s) => (/^[A-Z0-9]{2,5}\b/.test(s) || /^IL-|^TNF-|^CD\d/.test(s) ? s : cap(s));
 
@@ -261,11 +283,11 @@ export function panelTitle(sel) {
 
 export function axisLabel(sel) {
   // the marker's note: never just "protein" — name the analyte and the unit
-  const base = [sel.tissue, sel.analyte].filter(Boolean).join(" ");
+  const base = [sel.tissue, analyteName(sel.analyte)].filter(Boolean).join(" ");
   const unit = sel.unit ? ` (${sel.unit})` : "";
-  if (/fold/i.test(sel.unit || "")) return `${base} mRNA (fold vs chow)`;
-  if (/ng per mg/i.test(sel.unit || "")) return `${base} protein (ng/mg)`;
-  return `${base}${unit}`;
+  if (/fold/i.test(sel.unit || "")) return msg("chart.axisMrna", { base });
+  if (/ng per mg/i.test(sel.unit || "")) return msg("chart.axisProtein", { base });
+  return msg("chart.axisPlain", { base, unit: sel.unit || "" });
 }
 
 export function timeUnitOf(sel) {
@@ -277,12 +299,12 @@ export function timeUnitOf(sel) {
 }
 
 export function xAxisLabel(sel) {
-  if (!sel.hasTime) return "Weeks on diet";
+  if (!sel.hasTime) return msg("chart.weeksOnDiet");
   const unit = timeUnitOf(sel);
-  if (unit === "min") return "Time after bolus (min)";
-  if (unit === "day") return "Time on diet (days)";
-  if (unit === "week") return "Time on diet (weeks)";
-  return "Time";
+  if (unit === "min") return msg("chart.timeAfterBolus");
+  if (unit === "day") return msg("chart.timeOnDiet.day");
+  if (unit === "week") return msg("chart.timeOnDiet.week");
+  return msg("chart.time");
 }
 
 /** The statistics sentence: ANOVA first, then the multiple comparisons. */
@@ -290,14 +312,14 @@ export function statsSentence(a) {
   if (!a?.ok) return "";
   const m = a.model;
   if (a.kind === "two-group")
-    return `${m.test}, ${S.fmtT(m)}, ${S.fmtP(m.p)}.`;
+    return msg("stats.sentence.tTest", { test: m.test, t: S.fmtT(m), p: S.fmtP(m.p) });
   if (a.kind === "one-way")
-    return `${m.test}, ${S.fmtF({ df: m.df1, dfError: m.df2, F: m.F })}, ${S.fmtP(m.p)}, followed by Šídák's multiple comparisons test.`;
+    return msg("stats.sentence.oneWay", { test: m.test,
+      f: S.fmtF({ df: m.df1, dfError: m.df2, F: m.F }), p: S.fmtP(m.p) });
   const e = m.effects;
-  return `${m.test}: ${e.within.name} ${S.fmtF(e.within)}, ${S.fmtP(e.within.p)}; ` +
-         `${e.between.name} ${S.fmtF(e.between)}, ${S.fmtP(e.between.p)}; ` +
-         `interaction ${S.fmtF(e.interaction)}, ${S.fmtP(e.interaction.p)}. ` +
-         `Followed by Šídák's multiple comparisons test.`;
+  const line = (x) => msg("stats.effectLine", { name: x.name, f: S.fmtF(x), p: S.fmtP(x.p) });
+  return msg("stats.sentence.rm", { test: m.test, within: line(e.within), between: line(e.between),
+    interaction: msg("stats.interactionLine", { f: S.fmtF(e.interaction), p: S.fmtP(e.interaction.p) }) });
 }
 
 /**
@@ -307,26 +329,23 @@ export function statsSentence(a) {
 let species = "";
 export const setSpecies = (s) => { species = String(s || "").trim(); };
 export const getSpecies = () => species;
-const inSpecies = () => (species ? ` in ${species}` : "");
 
 /** Figure legend in the structure the marking form rewards. */
 export function draftLegend(panels, figureNumber = 1) {
   if (!panels.length) return "";
   if (!panels.some((p) => p.analysis?.ok))
-    return `Figure ${figureNumber}. No analysis could be run on this selection. ` +
-           (panels[0].analysis?.reason || "");
+    return msg("legend.noAnalysis", { n: figureNumber, reason: panels[0].analysis?.reason || "" });
   const letters = panels.map((p, i) => A_Z[i]);
   const title = figureTitle(panels);
   const findings = panels.map((p, i) => {
     const f = panelFinding(p.sel, p.analysis);
-    return f ? `(${letters[i]}) ${sentence(f)}` : null;
+    return f ? msg("legend.panel", { letter: letters[i], text: sentence(f) }) : null;
   }).filter(Boolean);
 
   const ns = panels.map((p) => p.analysis?.ok ? p.analysis.summary.flatMap((s) => s.points.map((q) => q.n)) : [])
                    .flat().filter((n) => n > 0);
   const nLo = Math.min(...ns), nHi = Math.max(...ns);
-  const nText = ns.length ? (nLo === nHi ? `n = ${nLo} animals per group`
-                                         : `n = ${nLo}–${nHi} animals per group`) : "";
+  const nText = ns.length ? msg("legend.nRange", { lo: nLo, hi: nHi }) : "";
 
   const tests = [...new Set(panels.map((p) => p.analysis?.ok ? lower(p.analysis.model.test) : null).filter(Boolean))];
   const one = panels.length === 1;
@@ -336,32 +355,35 @@ export function draftLegend(panels, figureNumber = 1) {
 
   const spread = panels.find((p) => p.analysis?.ok)?.analysis.errorBars === "sd" ? "SD" : "SEM";
   return [
-    `Figure ${figureNumber}. ${title}`,
-    findings.join(" "),
-    `Data are mean ± ${spread}${nText ? ", " + nText : ""}.`,
-    `Analysed by ${tests.join(" and ")} (${stats}).`,
-    `*p < 0.05, **p < 0.01, ***p < 0.001, ****p < 0.0001 versus ${panels[0].analysis?.control || "control"}.`
-  ].filter(Boolean).join(" ");
+    msg("legend.figure", { n: figureNumber, title }),
+    joinSentences(findings),
+    msg("legend.spread", { spread, n: nText }),
+    msg("legend.analysed", { tests: listWords(tests), stats }),
+    msg("legend.stars", { control: panels[0].analysis?.control || "control" })
+  ].filter(Boolean).join(msg("join.sentence")).trim();
 }
 
 function inlineStats(a) {
   const m = a.model;
   if (a.kind === "two-group") return `${S.fmtT(m)}, ${S.fmtP(m.p)}`;
   if (a.kind === "one-way") return `${S.fmtF({ df: m.df1, dfError: m.df2, F: m.F })}, ${S.fmtP(m.p)}`;
-  const e = m.effects;
-  return `interaction ${S.fmtF(e.interaction)}, ${S.fmtP(e.interaction.p)}`;
+  return msg("legend.interaction", { f: S.fmtF(m.effects.interaction), p: S.fmtP(m.effects.interaction.p) });
 }
 
 function figureTitle(panels) {
   const tissues = [...new Set(panels.map((p) => p.sel.tissue).filter(Boolean))];
-  const analytes = [...new Set(panels.map((p) => p.sel.analyte))];
-  const where = tissues.length ? ` in ${listWords(tissues.map(tissueWord))}` : "";
+  const rawAnalytes = [...new Set(panels.map((p) => p.sel.analyte))];
+  const analytes = rawAnalytes.map(analyteName);
+
   const sig = panels.some((p) => isSignificant(p.analysis));
-  const subject = analytes.length === 1 && /glucose/i.test(analytes[0])
-    ? "glucose handling"
-    : `${listWords(analytes.map(lower))}${where}`;
-  const verb = sig ? "alters" : "does not alter";
-  return `High-fat feeding ${verb} ${subject}${inSpecies()}.`;
+  const subject = rawAnalytes.length === 1 && /glucose/i.test(rawAnalytes[0])
+    ? msg("draft.glucoseHandling")
+    : (tissues.length
+        ? msg("draft.subjectIn", { what: listWords(analytes.map(lower)), where: listWords(tissues.map(tissueWord)) })
+        : listWords(analytes.map(lower)));
+  return msg("draft.figureTitle", {
+    verb: msg(sig ? "draft.alters" : "draft.doesNotAlter"), subject, species
+  });
 }
 
 /**
@@ -374,19 +396,24 @@ export function draftTitle(figures) {
 
   const changed = panels.filter((p) => isSignificant(p.analysis));
   const tissues = [...new Set(changed.map((p) => p.sel.tissue).filter(Boolean))];
-  const analytes = [...new Set(changed.map((p) => p.sel.analyte).filter((a) => !/glucose|weight/i.test(a)))];
+  const analytes = [...new Set(changed
+    .filter((p) => !/glucose|weight/i.test(p.sel.analyte))
+    .map((p) => analyteName(p.sel.analyte)))];
   const systemic = changed.some((p) => /glucose/i.test(p.sel.analyte));
   const weight = changed.some((p) => /weight/i.test(p.sel.analyte));
 
   const clauses = [];
   if (analytes.length)
-    clauses.push(`${tissues.length > 1 ? "tissue-specific " : ""}changes in ` +
-      `${listWords(analytes.map(lower))}${tissues.length ? ` in ${listWords(tissues.map(tissueWord))}` : ""}`);
-  if (systemic) clauses.push("impaired glucose handling");
-  if (weight) clauses.push("weight gain");
-  if (!clauses.length) return `Effects of high-fat feeding${inSpecies()}.`;
+    clauses.push(msg("title.changes", {
+      specific: tissues.length > 1,
+      what: listWords(analytes.map(lower)),
+      where: tissues.length ? listWords(tissues.map(tissueWord)) : ""
+    }));
+  if (systemic) clauses.push(msg("title.glucose"));
+  if (weight) clauses.push(msg("title.weight"));
+  if (!clauses.length) return msg("title.fallback", { species });
 
-  return cap(`${listWords(clauses)} during high-fat feeding${inSpecies()}.`);
+  return cap(msg("title.sentence", { clauses: listWords(clauses), species }));
 }
 
 function isSignificant(a) {
@@ -398,35 +425,38 @@ function isSignificant(a) {
 /** One sentence per panel, stating the finding — not just what was plotted. */
 export function panelFinding(sel, a) {
   if (!a?.ok) return null;
-  const what = sel.tissue ? `${tissueWord(sel.tissue)} ${sel.analyte}` : lower(sel.analyte);
+  const what = sel.tissue ? `${tissueWord(sel.tissue)} ${sel.analyte}` : lower(analyteName(sel.analyte));
   if (a.kind === "time") {
     const e = a.model.effects;
     const sig = a.posthoc.filter((c) => c.p < 0.05);
     if (!sig.length && e.interaction.p >= 0.05)
-      return `${what} did not differ between groups at any time point (${S.fmtP(e.interaction.p)} for the interaction).`;
+      return msg("finding.noDifference", { what, p: S.fmtP(e.interaction.p) });
     const run = trailingRun(a, sel);
-    if (run) return `${what} diverged between groups from ${run.from}${unitWord(timeUnitOf(sel))} onwards ` +
-      `(${S.fmtP(run.p).replace("p = ", "p \u2264 ")}).`;
+    if (run) return msg("finding.diverged", { what, from: run.from,
+      unit: unitWord(timeUnitOf(sel)), p: S.fmtP(run.p).replace("p = ", "p \u2264 ") });
     const worst = [...sig].sort((x, y) => x.p - y.p)[0];
-    return `${what} differed between groups, most clearly ${describeAt(worst, sel)} (${S.fmtP(worst.p)}).`;
+    return msg("finding.clearest", { what, where: describeAt(worst, sel), p: S.fmtP(worst.p) });
   }
   const rising = trendDirection(a);
   const sig = a.posthoc.filter((c) => c.p < 0.05);
   if (a.kind === "one-way" && !sig.length)
-    return `${what} was unchanged by high-fat feeding (${S.fmtP(a.model.p)}).`;
+    return msg("finding.unchanged", { what, p: S.fmtP(a.model.p) });
   if (a.kind === "one-way") {
     const others = a.summary.length - 1;
     const when = sig.length === others && others > 2
-      ? "every duration tested"
-      : sig.map((c) => c.label.split(" vs ")[0]).join(", ");
-    return `${what} ${rising} with high-fat feeding, reaching significance at ${when}.`;
+      ? msg("finding.everyDuration")
+      : listWords(sig.map((c) => c.label.split(" vs ")[0]));
+    return msg("finding.trend", { what, direction: rising, when });
   }
-  return `${what} ${a.model.p < 0.05 ? "differed between the two groups" : "did not differ between the two groups"} (${S.fmtP(a.model.p)}).`;
+  return msg("finding.twoGroups", { what,
+    differed: msg(a.model.p < 0.05 ? "finding.differed" : "finding.didNotDiffer"),
+    p: S.fmtP(a.model.p) });
 }
 
 function describeAt(c, sel) {
-  if (c.x == null) return `in ${c.group}`;
-  return `in ${c.group} at ${c.x}${unitWord(timeUnitOf(sel))}`;
+  return c.x == null
+    ? msg("finding.in", { group: c.group })
+    : msg("finding.at", { group: c.group, x: c.x, unit: unitWord(timeUnitOf(sel)) });
 }
 
 /**
@@ -451,7 +481,7 @@ function trendDirection(a) {
   const ctrlIdx = a.summary.findIndex((s) => s.group === a.control);
   const rest = means.filter((_, i) => i !== ctrlIdx);
   const avg = rest.reduce((x, y) => x + y, 0) / rest.length;
-  return avg > means[ctrlIdx] ? "rose" : "fell";
+  return msg(avg > means[ctrlIdx] ? "finding.rose" : "finding.fell");
 }
 
 /** The results-paragraph draft: method recap, trend, aberrant data, statistics. */
@@ -461,44 +491,35 @@ export function draftResults(panels, figureNumber = 1) {
   lines.push(methodRecap(first.sel));
   panels.forEach((p, i) => {
     const f = panelFinding(p.sel, p.analysis);
-    if (f) lines.push(`${sentence(f).replace(/\.$/, "")} (Figure ${figureNumber}${A_Z[i]}).`);
+    if (f) lines.push(msg("results.panelRef", {
+      text: sentence(f).replace(/[.。]$/, ""), n: figureNumber, letter: A_Z[i] }));
   });
   const stat = panels.map((p, i) => p.analysis?.ok
-    ? `${panels.length > 1 ? `For panel ${A_Z[i]}, ` : ""}` +
-      (panels.length > 1
-        ? statsSentence(p.analysis).replace(/^[A-Z]/, (c) => c.toLowerCase())
+    ? (panels.length > 1
+        ? msg("results.forPanel", { letter: A_Z[i], sentence: statsSentence(p.analysis) })
         : statsSentence(p.analysis))
     : null).filter(Boolean);
   lines.push(...stat);
   const odd = panels.flatMap((p) => p.analysis?.outliers || []);
   if (odd.length) {
-    lines.push(`One value stood out from its group: animal ${odd[0].subject} in ${odd[0].group}` +
-      ` (Grubbs' test G = ${odd[0].G.toFixed(3)} against a critical value of ${odd[0].Gcrit.toFixed(3)}), retained in the analysis and visible in the figure.`);
+    lines.push(msg("results.outlier", { subject: odd[0].subject, group: odd[0].group,
+      g: odd[0].G.toFixed(3), crit: odd[0].Gcrit.toFixed(3) }));
   }
   const dropped = panels.flatMap((p) => p.analysis?.dropped || []);
   if (dropped.length) {
-    lines.push(`Animals not tested at every time point were excluded from this analysis (${[...new Set(dropped)].join(", ")}).`);
+    lines.push(msg("results.dropped", { list: listWords([...new Set(dropped)]) }));
   }
-  return lines.join(" ");
+  return joinSentences(lines);
 }
 
 function methodRecap(sel) {
   const s = (sel.sheet || "").toLowerCase();
-  if (/glucose/.test(s))
-    return "Mice were fasted and given a glucose bolus, and tail blood glucose was measured over the following two hours.";
-  if (/insulin/.test(s))
-    return "Mice were given an insulin bolus and tail blood glucose was followed over the following two hours.";
-  if (/weight/.test(s))
-    return "Body weight was recorded twice weekly throughout the feeding period.";
-  if (/protein/.test(s))
-    return `${sel.tissue || "Tissue"} was collected at each time point and ${sel.analyte} protein measured by Bio-Plex cytokine assay, expressed per mg of tissue.`;
-  if (/mrna|cd68/.test(s))
-    return `RNA was extracted from ${sel.tissue || "tissue"} at each time point and ${sel.analyte} expression measured by RT-qPCR, normalised to 18S and expressed relative to chow-fed controls.`;
-  return "Samples were collected at each time point and assayed as described in the Methods.";
+  if (/glucose/.test(s)) return msg("method.glucose");
+  if (/insulin/.test(s)) return msg("method.insulin");
+  if (/weight/.test(s)) return msg("method.weight");
+  if (/protein/.test(s)) return msg("method.protein", { tissue: sel.tissue, analyte: sel.analyte });
+  if (/mrna|cd68/.test(s)) return msg("method.mrna", { tissue: sel.tissue, analyte: sel.analyte });
+  return msg("method.generic");
 }
 
-function listWords(a) {
-  if (a.length === 1) return a[0];
-  if (a.length === 2) return `${a[0]} and ${a[1]}`;
-  return `${a.slice(0, -1).join(", ")} and ${a[a.length - 1]}`;
-}
+const listWords = (a) => listWordsFor(a);

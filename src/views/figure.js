@@ -8,12 +8,13 @@ import { state, SIZES, figureExtent, layoutThatFits, A4_TEXT_MM,
 import { groupColors } from "../lib/charts.js";
 import { seriesNames, panelName, panelHint } from "../labels.js";
 import { saveFigurePng, copyFigure, saveFigureSvg, saveEverything } from "../exports.js";
+import { t } from "../i18n/index.js";
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 /** One tab per figure in the report; the letters inside each are its panels. */
 function figureTabs() {
-  return el("div", { class: "fig-tabs", role: "tablist", "aria-label": "Figures in this report" },
+  return el("div", { class: "fig-tabs", role: "tablist", "aria-label": t("figure.figures") },
     ...state.figures.map((fig, i) => {
       const active = fig.id === state.activeId;
       return el("div", { class: `fig-tab${active ? " is-on" : ""}` },
@@ -21,25 +22,25 @@ function figureTabs() {
           type: "button", role: "tab", "aria-selected": String(active),
           "data-focus-key": `fig:${fig.id}`,
           onclick: () => St.switchFigure(fig.id)
-        }, `Figure ${i + 1}`,
+        }, t("figure.nth", { n: i + 1 }),
           el("span", { class: "fig-tab-count" }, String(fig.chosen.length))),
         active && state.figures.length > 1
           ? el("button", {
               type: "button", class: "fig-tab-close",
-              "aria-label": `Remove figure ${i + 1}`, title: "Remove this figure",
+              "aria-label": t("figure.removeFigure", { n: i + 1 }), title: t("figure.removeFigureTitle"),
               onclick: () => St.removeFigure(fig.id)
             }, "×")
           : null);
     }),
     el("button", {
       type: "button", class: "fig-tab-add", "data-focus-key": "fig:add",
-      title: "Add an empty figure", onclick: () => St.addFigure()
-    }, "+ Add"),
+      title: t("figure.addTitle"), onclick: () => St.addFigure()
+    }, t("figure.add")),
     state.figures.length > 1
       ? el("button", {
           type: "button", class: "btn btn--quiet", style: "margin-left:auto",
           onclick: () => St.duplicateFigure()
-        }, "Duplicate")
+        }, t("figure.duplicate"))
       : null);
 }
 
@@ -60,21 +61,21 @@ function suggestionPanel() {
   const fresh = state.figures.length === 1 && state.chosen.length <= 1;
   return el("details", { class: "suggest-block", open: fresh },
     el("summary", {},
-      el("span", { class: "legend" }, "Suggested figures"),
-      el("span", { class: "note" }, `${primary.length} ready to use`)),
+      el("span", { class: "legend" }, t("figure.suggested")),
+      el("span", { class: "note" }, t("figure.suggestedReady", { n: primary.length }))),
     el("p", { class: "note", style: "margin:8px 0 10px" },
-      "Each one fills the figure you are on."),
+      t("figure.suggestedHint")),
     el("div", { class: "suggestions" }, ...primary.map(button)),
     across.length
       ? el("details", { class: "more-suggestions" },
-          el("summary", {}, `Compare one measurement across tissues (${across.length})`),
+          el("summary", {}, t("figure.suggestedAcross", { n: across.length })),
           el("div", { class: "suggestions" }, ...across.map(button)))
       : null,
     primary.length > 1
       ? el("button", {
           type: "button", class: "btn btn--ghost", style: "margin-top:12px;width:100%",
           onclick: () => St.buildReport(primary)
-        }, `Build all ${primary.length} as a results section`)
+        }, t("figure.buildAll", { n: primary.length }))
       : null);
 }
 
@@ -114,10 +115,10 @@ function seriesPicker() {
 
   return el("fieldset", {},
     el("legend", { class: "legend" },
-      el("span", {}, `Panels (${state.chosen.length} of ${all.length})`)),
+      el("span", {}, t("figure.panels", { chosen: state.chosen.length, all: all.length }))),
     el("input", {
       type: "search", class: "filter", id: "series-filter", value: filter,
-      placeholder: "Filter measurements…", "aria-label": "Filter measurements",
+      placeholder: t("figure.filter"), "aria-label": t("figure.filter"),
       "data-focus-key": "series:filter",
       oninput: (e) => { filter = e.target.value; St.update({}, "filter"); }
     }),
@@ -126,32 +127,32 @@ function seriesPicker() {
         ? [...bySheet].map(([sheet, list]) => el("div", { class: "chip-group" },
             el("p", { class: "chip-group-label" }, sheet),
             el("div", { class: "chips" }, ...list.map(chip))))
-        : el("p", { class: "note" }, `Nothing matches "${filter}".`)),
+        : el("p", { class: "note" }, t("figure.filterNone", { needle: filter }))),
     hidden.length
       ? el("p", { class: "note filter-note" },
-          `${hidden.length} chosen panel${hidden.length > 1 ? "s are" : " is"} hidden by this filter. `,
+          t("figure.filterHiding", { n: hidden.length }),
           el("button", {
             type: "button", class: "btn btn--quiet",
             onclick: () => { filter = ""; St.update({}, "filter"); }
-          }, "Clear the filter"))
+          }, t("figure.clearFilter")))
       : null,
     el("div", { class: "btn-group", style: "margin-top:10px" },
       el("button", {
         type: "button", class: "btn btn--quiet",
         onclick: () => St.setSeries(allOn ? [all[0]] : all)
-      }, allOn ? "Select just the first" : "Select all"),
+      }, t(allOn ? "figure.selectFirst" : "figure.selectAll")),
       state.chosen.length > 1
         ? el("button", {
             type: "button", class: "btn btn--quiet",
             onclick: () => St.setSeries([state.chosen[0]])
-          }, "Clear the rest")
+          }, t("figure.clearRest"))
         : null));
 }
 
 function groupPicker() {
   const colors = groupColors(state.availableGroups, state.records);
   return el("fieldset", {},
-    el("legend", { class: "legend" }, `Groups to compare (${state.groups.length})`),
+    el("legend", { class: "legend" }, t("figure.groups", { n: state.groups.length })),
     el("div", { class: "chips", id: "group-chips" }, ...state.availableGroups.map((g) => el("label", { class: "chip" },
       el("input", {
         type: "checkbox", checked: state.groups.includes(g),
@@ -181,9 +182,9 @@ function panelRow(p, i, names) {
   const summary = el("button", {
     type: "button", class: `panel-groups${own ? " is-own" : ""}`,
     "aria-expanded": String(expanded), "data-focus-key": `pgroups:${p.id}`,
-    title: own ? "This panel has groups of its own" : "Uses the figure's groups",
+    title: t(own ? "figure.ownGroups" : "figure.usesFigureGroups"),
     onclick: () => { openPanel = expanded ? null : p.id; St.update({}, "panel-groups"); }
-  }, own ? groups.join(", ") : "Figure groups", el("span", { class: "caret" }, expanded ? "▾" : "▸"));
+  }, own ? groups.join(t("join.clause")) : t("figure.figureGroups"), el("span", { class: "caret" }, expanded ? "▾" : "▸"));
 
   const editor = !expanded ? null : el("div", { class: "panel-group-editor" },
     el("div", { class: "chips" }, ...state.availableGroups.map((g) => el("label", { class: "chip" },
@@ -199,7 +200,7 @@ function panelRow(p, i, names) {
       ? el("button", {
           type: "button", class: "btn btn--quiet", style: "margin-top:8px",
           onclick: () => St.setPanelGroups(p.id, null)
-        }, "Follow the figure's groups again")
+        }, t("figure.followFigure"))
       : null);
 
   return el("div", { class: `panel-item${p.analysis?.ok ? "" : " is-invalid"}${expanded ? " is-open" : ""}` },
@@ -209,30 +210,30 @@ function panelRow(p, i, names) {
         panelName(p, names),
         p.analysis?.ok
           ? (hint ? el("small", {}, hint) : null)
-          : el("small", {}, "no test fits this selection")),
+          : el("small", {}, t("figure.noTest"))),
       el("span", { class: "panel-actions" },
         el("button", {
           type: "button", class: "btn btn--icon", disabled: i === 0,
-          title: "Move up", "aria-label": `Move ${panelName(p, names)} earlier`,
+          title: t("figure.moveUp"), "aria-label": t("figure.moveEarlier", { name: panelName(p, names) }),
           "data-focus-key": `up:${p.id}`,
           onclick: () => St.movePanel(p.id, -1)
         }, "↑"),
         el("button", {
           type: "button", class: "btn btn--icon", disabled: i === state.panels.length - 1,
-          title: "Move down", "aria-label": `Move ${panelName(p, names)} later`,
+          title: t("figure.moveDown"), "aria-label": t("figure.moveLater", { name: panelName(p, names) }),
           "data-focus-key": `down:${p.id}`,
           onclick: () => St.movePanel(p.id, 1)
         }, "↓"),
         el("button", {
           type: "button", class: "btn btn--icon",
-          title: "Show this measurement again with different groups",
-          "aria-label": `Add another panel of ${panelName(p, names)}`,
+          title: t("figure.duplicatePanel"),
+          "aria-label": t("figure.duplicatePanelLabel", { name: panelName(p, names) }),
           "data-focus-key": `dup:${p.id}`,
           onclick: () => { openPanel = null; St.duplicatePanel(p.id); }
         }, "⧉"),
         el("button", {
           type: "button", class: "btn btn--icon",
-          title: "Remove this panel", "aria-label": `Remove ${panelName(p, names)}`,
+          title: t("figure.removePanel"), "aria-label": t("figure.removePanelLabel", { name: panelName(p, names) }),
           "data-focus-key": `rm:${p.id}`,
           onclick: () => St.removePanel(p.id)
         }, "×"))),
@@ -244,11 +245,11 @@ function panelList() {
   if (!state.panels.length) return null;
   const names = seriesNames();
   return el("fieldset", {},
-    el("legend", { class: "legend" }, "Panels in this figure"),
+    el("legend", { class: "legend" }, t("figure.panelList")),
     el("div", { class: "panel-list scroll-y" },
       ...state.panels.map((p, i) => panelRow(p, i, names))),
     el("p", { class: "note", style: "margin-top:10px" },
-      "⧉ adds the same measurement again, so one figure can answer two questions about it."));
+      t("figure.panelListHint")));
 }
 
 /** A row of mutually exclusive choices, as buttons rather than a dropdown. */
@@ -268,29 +269,27 @@ function choice(label, value, options, onPick, keyPrefix) {
 
 function options() {
   return el("div", { class: "option-grid" },
-    choice("Layout", state.cols,
+    choice(t("figure.layout"), state.cols,
       [1, 2, 3, 4].map((n) => [n, String(n)]),
       (v) => St.setFigureOption({ cols: v }), "cols"),
 
-    choice("Panel size", state.size,
-      Object.entries(SIZES).map(([k, s]) => [k, s.label]),
+    choice(t("figure.panelSize"), state.size,
+      Object.keys(SIZES).map((k) => [k, t(`figure.size.${k}`)]),
       (v) => St.setFigureOption({ size: v }), "size"),
 
     el("div", { class: "field" },
-      choice("Error bars", state.errorBars,
-        [["sem", "± SEM"], ["sd", "± SD"]],
+      choice(t("figure.errorBars"), state.errorBars,
+        [["sem", t("figure.sem")], ["sd", t("figure.sd")]],
         (v) => St.setFigureOption({ errorBars: v }), "err"),
       el("p", { class: "note", style: "margin-top:6px" },
-        state.errorBars === "sem"
-          ? "How precisely the mean is known. If your instructions ask you to show variability within the population, that is SD."
-          : "How much the animals themselves vary — the spread of the population.")),
+        t(state.errorBars === "sem" ? "figure.semHint" : "figure.sdHint"))),
 
-    choice("Individual animals", state.showPoints,
-      [[true, "Shown"], [false, "Hidden"]],
+    choice(t("figure.points"), state.showPoints,
+      [[true, t("figure.pointsShown")], [false, t("figure.pointsHidden")]],
       (v) => St.setFigureOption({ showPoints: v }), "pts"),
 
     el("div", { class: "field" },
-      el("label", { class: "field-label", for: "opt-control" }, "Compared against"),
+      el("label", { class: "field-label", for: "opt-control" }, t("figure.control")),
       el("select", {
         id: "opt-control", "data-focus-key": "opt:control",
         onchange: (e) => St.setFigureOption({ control: e.target.value })
@@ -298,20 +297,20 @@ function options() {
         el("option", { value: g, selected: g === state.control }, g)))),
 
     el("div", { class: "field" },
-      el("span", { class: "field-label" }, "Position in the report"),
+      el("span", { class: "field-label" }, t("figure.position")),
       el("div", { class: "btn-group" },
         el("button", {
           type: "button", class: "btn btn--icon", "data-focus-key": "fig:up",
-          disabled: figureNumber() <= 1, "aria-label": "Move this figure earlier",
+          disabled: figureNumber() <= 1, "aria-label": t("figure.moveFigureEarlier"),
           onclick: () => St.moveFigure(state.activeId, -1)
         }, "↑"),
         el("button", {
           type: "button", class: "btn btn--icon", "data-focus-key": "fig:down",
           disabled: figureNumber() >= state.figures.length,
-          "aria-label": "Move this figure later",
+          "aria-label": t("figure.moveFigureLater"),
           onclick: () => St.moveFigure(state.activeId, 1)
         }, "↓"),
-        el("span", { class: "note" }, `Figure ${figureNumber()} of ${state.figures.length}`))));
+        el("span", { class: "note" }, t("figure.positionOf", { n: figureNumber(), total: state.figures.length })))));
 }
 
 /* ---------- preview ---------- */
@@ -322,64 +321,64 @@ function preview() {
   const fits = layoutThatFits();
   const surface = el("div", { class: "figure-surface", id: "figure-surface" });
   surface.innerHTML = state.svg ||
-    `<p class="empty"><strong>Nothing to draw yet</strong>Tick a measurement to add the first panel.</p>`;
+    `<p class="empty"><strong>${t("figure.nothingDrawn")}</strong>${t("figure.tickOne")}</p>`;
 
   return el("div", { class: "card builder-main" },
     el("div", { class: "card-head" },
-      el("h3", {}, `Figure ${figureNumber()}`),
+      el("h3", {}, t("figure.nth", { n: figureNumber() })),
       el("span", { class: "note" }, extent
-        ? `${extent.mmWide} × ${extent.mmTall} mm — ${extent.shareText}`
-        : "Drawn on white for pasting into your report")),
+        ? t("figure.extent", { w: extent.mmWide, h: extent.mmTall, share: extent.shareText })
+        : t("figure.onWhite"))),
     extent && !extent.leavesRoomForLegend
       ? el("p", { class: "note", style: "margin:-6px 0 12px" },
-          `Taller than half a page, so its legend will start on the next one. `,
+          t("figure.tooTall"),
           fits
             ? el("button", {
                 type: "button", class: "btn btn--quiet",
                 onclick: () => St.setFigureOption({ cols: fits.cols, size: fits.size })
-              }, `Fit to the page (${fits.cols} column${fits.cols > 1 ? "s" : ""}, ${SIZES[fits.size].label.toLowerCase()})`)
-            : "Fewer panels in this figure would fit.")
+              }, t("figure.fitTo", { cols: fits.cols, size: t(`figure.size.${fits.size}`) }))
+            : t("figure.fewerPanels"))
       : extent && extent.mmWide > A4_TEXT_MM
         ? el("p", { class: "note", style: "margin:-6px 0 12px" },
-            `Wider than an A4 text column (${A4_TEXT_MM} mm), so Word will scale it down and the type with it. `,
+            t("figure.tooWide", { mm: A4_TEXT_MM }),
             fits
               ? el("button", {
                   type: "button", class: "btn btn--quiet",
                   onclick: () => St.setFigureOption({ cols: fits.cols, size: fits.size })
-                }, `Fit to the page (${fits.cols} column${fits.cols > 1 ? "s" : ""}, ${SIZES[fits.size].label.toLowerCase()})`)
-              : "Fewer panels in this figure would fit.")
+                }, t("figure.fitTo", { cols: fits.cols, size: t(`figure.size.${fits.size}`) }))
+              : t("figure.fewerPanels"))
         : null,
     broken.length
       ? el("div", { class: "callout callout--warn", style: "margin-bottom:12px" },
           el("strong", {}, broken.length === state.panels.length
-            ? "This comparison has no valid test. "
-            : `${broken.length} of ${state.panels.length} panels cannot be tested. `),
+            ? t("figure.brokenAll")
+            : t("figure.brokenSome", { broken: broken.length, total: state.panels.length })),
           broken[0].analysis?.reason || "")
       : null,
     surface,
     el("div", { class: "btn-group", style: "margin-top:14px" },
-      el("button", { type: "button", class: "btn", onclick: saveFigurePng }, "Download PNG (300 dpi)"),
-      el("button", { type: "button", class: "btn btn--ghost", onclick: copyFigure }, "Copy image"),
-      el("button", { type: "button", class: "btn btn--ghost", onclick: saveFigureSvg }, "SVG"),
+      el("button", { type: "button", class: "btn", onclick: saveFigurePng }, t("figure.downloadPng")),
+      el("button", { type: "button", class: "btn btn--ghost", onclick: copyFigure }, t("figure.copy")),
+      el("button", { type: "button", class: "btn btn--ghost", onclick: saveFigureSvg }, t("figure.svg")),
       el("button", { type: "button", class: "btn btn--ghost", onclick: saveEverything },
-        "Save everything")),
+        t("figure.saveAll"))),
     el("p", { class: "note", style: "margin-top:10px" },
       state.figures.length > 1
-        ? `Save everything writes all ${state.figures.length} figures, one statistics file, the drafted text and a Prism table — your browser will ask to allow several downloads.`
-        : "Save everything writes the figure, the statistics, the drafted text and a Prism table."));
+        ? t("figure.saveAllHintMany", { n: state.figures.length })
+        : t("figure.saveAllHintOne")));
 }
 
 export const view = {
   id: "figure",
   render(root, { go }) {
     if (!state.loaded) {
-      setChildren(root, emptyState("No workbook yet", "Load a file on the first step."));
+      setChildren(root, emptyState(t("check.noWorkbook"), t("check.loadFirst")));
       return;
     }
     setChildren(root, 
       el("div", { class: "view-head" },
-        el("h2", {}, "Build the figure"),
-        el("p", {}, "Tick the measurements to become panels and the groups to compare. Panels are drawn into one image, lettered A, B, C, so a multi-panel figure exports as a single file.")),
+        el("h2", {}, t("figure.heading")),
+        el("p", {}, t("figure.lede"))),
       figureTabs(),
       el("div", { class: "builder" },
         el("div", { class: "builder-side" },
@@ -388,7 +387,7 @@ export const view = {
           el("div", { class: "card" }, groupPicker()),
           state.panels.length ? el("div", { class: "card" }, panelList()) : null,
           el("div", { class: "card" },
-            el("p", { class: "legend", style: "margin-bottom:12px" }, "Figure options"),
+            el("p", { class: "legend", style: "margin-bottom:12px" }, t("figure.options")),
             options())),
         preview())
     );

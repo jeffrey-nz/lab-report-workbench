@@ -20,15 +20,16 @@
 </head>
 
 <body>
-<a class="visually-hidden" href="#view-root">Skip to the current step</a>
+<a class="visually-hidden" href="#view-root" id="skip-link">Skip to the current step</a>
 
 <header class="masthead">
   <div class="masthead-in page">
     <div class="brand">
-      <strong>Lab Report Workbench</strong>
-      <span>workbook &rarr; figures &rarr; statistics &rarr; draft</span>
+      <strong id="brand-name">Lab Report Workbench</strong>
+      <span id="brand-tagline">workbook &rarr; figures &rarr; statistics &rarr; draft</span>
     </div>
     <nav class="steps" id="steps" aria-label="Stages"></nav>
+    <div class="segmented" id="language-toggle" role="group"></div>
     <button type="button" class="btn btn--icon" id="theme-toggle"
             title="Switch between light and dark" aria-label="Switch between light and dark">
       Theme
@@ -43,6 +44,7 @@
 <noscript>
   <p class="page" style="padding-block:40px">
     This tool reads your spreadsheet in the browser, so it needs JavaScript enabled.
+    このツールはブラウザ内で表計算ファイルを読み込むため、JavaScript を有効にしてください。
   </p>
 </noscript>
 

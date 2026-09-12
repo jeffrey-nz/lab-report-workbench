@@ -5,6 +5,7 @@ import { svgToPng } from "./lib/charts.js";
 import { statsSentence, draftLegend, draftResults } from "./lib/analyse.js";
 import { seriesNames, panelFullName } from "./labels.js";
 import { stars } from "./lib/stats.js";
+import { t } from "./i18n/index.js";
 import { toast } from "./dom.js";
 
 export function download(blob, filename) {
@@ -26,12 +27,12 @@ const textBlob = (s, type = "text/plain") => new Blob([s], { type: `${type};char
 /* ---------- the figure ---------- */
 
 export async function saveFigurePng() {
-  if (!state.svg) return toast("Choose at least one measurement first.");
+  if (!state.svg) return toast(t("msg.chooseFirst"));
   try {
     download(await svgToPng(state.svg, 300), `figure-${figureNumber()}.png`);
-    toast("Saved as a 300 dpi PNG");
+    toast(t("msg.pngSaved"));
   } catch {
-    toast("The figure could not be converted to PNG.");
+    toast(t("msg.pngFailed"));
   }
 }
 
@@ -40,16 +41,16 @@ export async function copyFigure() {
   try {
     const blob = await svgToPng(state.svg, 300);
     await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-    toast("Copied — paste straight into your report");
+    toast(t("msg.imageCopied"));
   } catch {
-    toast("This browser will not let a page copy images. Use Download instead.");
+    toast(t("msg.imageCopyBlocked"));
   }
 }
 
 export function saveFigureSvg() {
   if (!state.svg) return;
   download(textBlob(state.svg, "image/svg+xml"), `figure-${figureNumber()}.svg`);
-  toast("Saved as vector SVG");
+  toast(t("msg.svgSaved"));
 }
 
 /* ---------- the data ---------- */
@@ -64,7 +65,7 @@ export function tidyRows() {
 
 export function saveTidyCsv() {
   download(textBlob(csv(tidyRows()), "text/csv"), "tidy-data.csv");
-  toast("Tidy data saved");
+  toast(t("msg.tidySaved"));
 }
 
 /** One column per group, one row per animal — the shape Prism pastes into. */
@@ -90,9 +91,9 @@ export function prismRows() {
 
 export function savePrismCsv() {
   const rows = prismRows();
-  if (!rows.length) return toast("Choose at least one measurement first.");
+  if (!rows.length) return toast(t("msg.chooseFirst"));
   download(textBlob(csv(rows), "text/csv"), "prism-table.csv");
-  toast("Prism table saved");
+  toast(t("msg.prismSaved"));
 }
 
 /* ---------- the statistics ---------- */
@@ -130,9 +131,9 @@ export function statsRows() {
 }
 
 export function saveStatsCsv() {
-  if (!state.panels.length) return toast("Choose at least one measurement first.");
+  if (!state.panels.length) return toast(t("msg.chooseFirst"));
   download(textBlob(csv(statsRows()), "text/csv"), "report-statistics.csv");
-  toast("Statistics for every figure saved");
+  toast(t("msg.statsSaved"));
 }
 
 /* ---------- the drafted text ---------- */
@@ -146,24 +147,23 @@ export function draftBundle() {
   for (const { fig, number, panels } of allFigures()) {
     const legend = draftText(`legend:${fig.id}`, draftLegend(panels, number));
     const results = draftText(`results:${fig.id}`, draftResults(panels, number));
-    lines.push(`FIGURE ${number} LEGEND`, "", legend, "",
-               `FIGURE ${number} — RESULTS PARAGRAPH`, "", results, "",
-               `FIGURE ${number} — STATISTICS`, "");
+    lines.push(t("file.legendHeading", { n: number }), "", legend, "",
+               t("file.resultsHeading", { n: number }), "", results, "",
+               t("file.statsHeading", { n: number }), "");
     panels.forEach((p, i) => {
       if (p.analysis?.ok)
         lines.push(`(${String.fromCharCode(65 + i)}) ${statsSentence(p.analysis)}`);
     });
     lines.push("", "—".repeat(60), "");
   }
-  lines.push("Drafted by Lab Report Workbench from your own data.",
-             "Rewrite this in your own words before submitting.");
+  lines.push(t("file.footer1"), t("file.footer2"));
   return lines.join("\n");
 }
 
 export function saveDrafts() {
-  if (!state.panels.length) return toast("Build a figure first.");
+  if (!state.panels.length) return toast(t("msg.buildFirst"));
   download(textBlob(draftBundle(), "text/markdown"), `report-draft.md`);
-  toast("Draft saved");
+  toast(t("msg.draftSaved"));
 }
 
 /* ---------- everything at once ---------- */
@@ -171,16 +171,16 @@ export function saveDrafts() {
 /** Every figure in the report, plus one statistics file and one draft. */
 export async function saveEverything() {
   const figures = allFigures().filter((f) => f.svg);
-  if (!figures.length) return toast("Build a figure first.");
+  if (!figures.length) return toast(t("msg.buildFirst"));
   for (const { number, svg } of figures) {
     try {
       download(await svgToPng(svg, 300), `figure-${number}.png`);
     } catch {
-      toast(`Figure ${number} could not be converted to PNG.`);
+      toast(t("msg.pngFailedN", { n: number }));
     }
   }
   saveStatsCsv();
   saveDrafts();
   savePrismCsv();
-  toast(`${figures.length} figure${figures.length > 1 ? "s" : ""}, statistics, draft and Prism table saved`);
+  toast(t("msg.savedEverything", { n: figures.length }));
 }

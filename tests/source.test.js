@@ -96,6 +96,38 @@ describe("guards against bugs already fixed once", () => {
     }
   });
 
+  test("the interface holds no untranslated prose", () => {
+    // a run of three or more English words in a literal is almost certainly a
+    // sentence that should have gone through t()
+    const prose = /["'`][A-Z][a-z]+ [a-z]+ [a-z]+[ ,.']/;
+    for (const { path, code } of sources) {
+      // the catalogues are prose by definition, and demo.js is the text inside a
+      // synthetic spreadsheet — it stands in for a real workbook, not for the UI
+      if (path.startsWith("src/i18n/") || path === "src/lib/demo.js") continue;
+      const offenders = code.split("\n")
+        .map((line, i) => [i + 1, line])
+        .filter(([, line]) => prose.test(line) && !line.trim().startsWith("*") &&
+                              !line.trim().startsWith("//"));
+      assert.deepEqual(offenders.map(([n, l]) => `${path}:${n} ${l.trim().slice(0, 70)}`), [],
+        "prose belongs in the language catalogues");
+    }
+  });
+
+  test("the catalogues cover every checklist item the app renders", () => {
+    const checklist = readFileSync(join(ROOT, "src/data/checklist.js"), "utf8");
+    const sections = [...checklist.matchAll(/key:\s*(\d+),\s*items:\s*(\d+)/g)]
+      .map((m) => [Number(m[1]), Number(m[2])]);
+    assert.ok(sections.length, "the checklist should declare its sections");
+    for (const lang of ["en", "ja"]) {
+      const cat = readFileSync(join(ROOT, `src/i18n/${lang}.js`), "utf8");
+      for (const [key, items] of sections) {
+        assert.ok(cat.includes(`"cl.${key}.title"`), `${lang} lacks cl.${key}.title`);
+        for (let i = 0; i < items; i++)
+          assert.ok(cat.includes(`"cl.${key}.${i}.do"`), `${lang} lacks cl.${key}.${i}.do`);
+      }
+    }
+  });
+
   test("nothing in the repository looks like study data", () => {
     const strays = readdirSync(ROOT).filter((n) => /\.(xlsx|xls|docx|csv)$/i.test(n));
     assert.deepEqual(strays, [], `data files must not be committed: ${strays}`);

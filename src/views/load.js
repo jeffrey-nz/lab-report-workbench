@@ -4,29 +4,15 @@ import { el, $, toast, setChildren } from "../dom.js";
 import { state, loadRecords, update } from "../state.js";
 import { sheetsToGrids, parseWorkbook } from "../lib/parse.js";
 import { demoWorkbook } from "../lib/demo.js";
+import { t } from "../i18n/index.js";
 
-const PITCH = [
-  ["It checks the sheet first",
-   `Every <code>Avg</code>, <code>StDev</code> and <code>StErr</code> the workbook states is
-    recomputed from the animals above it. Disagreements, <code>#VALUE!</code> cells, rows marked
-    <em>don't use</em> and inconsistent group labels are reported before you plot anything.`],
-  ["The design picks the test",
-   `Animals measured more than once become a repeated-measures analysis; separate cohorts become an
-    independent-groups analysis. It says which it chose and why, and gives you
-    <span class="m">F(df,&nbsp;df)</span>, <span class="m">p</span> and the multiple comparisons.`],
-  ["One figure, one file",
-   `Panels are drawn together and lettered A, B, C, with mean&nbsp;±&nbsp;SEM, every animal shown and
-    significance marked. Exports as a single 300&nbsp;dpi PNG, or as vector SVG.`],
-  ["It drafts the words",
-   `A figure legend and a results paragraph carrying your real numbers, in the structure these are
-    marked on. A starting point to rewrite &mdash; not something to submit.`]
-];
+const PITCH = ["check", "test", "figure", "words"];
 
 function ingest(sheets, name) {
   const parsed = parseWorkbook(sheets);
   if (!parsed.records.length) {
     update({ loading: false });
-    toast("No animal rows were found — does the sheet have an ID column?");
+    toast(t("load.noRows"));
     return;
   }
   loadRecords(parsed, name);
@@ -35,14 +21,14 @@ function ingest(sheets, name) {
 function readFile(file) {
   update({ loading: true });
   const reader = new FileReader();
-  reader.onerror = () => { update({ loading: false }); toast("That file could not be read."); };
+  reader.onerror = () => { update({ loading: false }); toast(t("load.unreadable")); };
   reader.onload = () => {
     try {
       const wb = XLSX.read(new Uint8Array(reader.result), { type: "array", cellDates: false });
       ingest(sheetsToGrids(wb, XLSX), file.name);
     } catch (err) {
       update({ loading: false });
-      toast("That file is not a spreadsheet this tool can read.");
+      toast(t("load.notSpreadsheet"));
       console.error(err);
     }
   };
@@ -56,22 +42,22 @@ function dropzone() {
   });
 
   const zone = el("div", { class: "dropzone", id: "dropzone" },
-    el("h3", {}, "Drop an .xlsx or .xls file here"),
-    el("p", {}, "The sheet layout is worked out from its shape, so the same workbook conventions parse again next semester."),
+    el("h3", {}, t("load.drop")),
+    el("p", {}, t("load.dropHint")),
     el("div", { class: "btn-group" },
       el("button", {
         type: "button", class: "btn", disabled: state.loading,
         onclick: () => input.click()
-      }, state.loading ? "Reading…" : "Choose a file"),
+      }, t(state.loading ? "load.reading" : "load.choose")),
       el("button", {
         type: "button", class: "btn btn--ghost", disabled: state.loading,
         onclick: () => {
           ingest(demoWorkbook(), "worked example (synthetic data)");
-          toast("Loaded a synthetic example — not real study data");
+          toast(t("load.exampleLoaded"));
         }
-      }, "Load a worked example")),
+      }, t("load.example"))),
     input,
-    el("p", { class: "privacy" }, "Your file stays on this device. There is no server."));
+    el("p", { class: "privacy" }, t("load.privacy")));
 
   const stop = (e) => { e.preventDefault(); };
   for (const type of ["dragenter", "dragover"])
@@ -92,16 +78,13 @@ function summary(go) {
     el("div", { class: "card-head" },
       el("h3", {}, state.fileName),
       el("span", { class: "note" },
-        `${state.records.length.toLocaleString()} values · ${state.series.length} measurements`)),
+        t("load.summary", { values: state.records.length, series: state.series.length }))),
     el("p", { class: "note" },
-      errors
-        ? `${errors} summary cell${errors > 1 ? "s" : ""} in the workbook disagree${errors > 1 ? "" : "s"} with the animal values${flagged ? `, and ${flagged} other thing${flagged > 1 ? "s were" : " was"} flagged` : ""}.`
-        : flagged
-          ? `No contradictions in the workbook's own summary rows; ${flagged} other note${flagged > 1 ? "s" : ""} to read.`
-          : "No contradictions found in the workbook's own summary rows."),
+      errors ? t("load.errors", { errors, flagged })
+             : flagged ? t("load.someFlags", { flagged }) : t("load.allClear")),
     el("div", { class: "btn-group", style: "margin-top:14px" },
       el("button", { type: "button", class: "btn", onclick: () => go("check") },
-        "Review the data checks")));
+        t("load.continue"))));
 }
 
 export const view = {
@@ -109,13 +92,14 @@ export const view = {
   render(root, { go }) {
     setChildren(root, 
       el("div", { class: "view-head" },
-        el("h2", {}, "Load the data workbook"),
-        el("p", {}, "Drop in the spreadsheet you were given. The workbook is read in your browser — nothing is uploaded anywhere.")),
+        el("h2", {}, t("load.heading")),
+        el("p", {}, t("load.lede"))),
       dropzone(),
       state.loaded ? el("div", { style: "margin-top:16px" }, summary(go)) : null,
       state.loaded ? null : el("div", { class: "pitch" },
-        ...PITCH.map(([h, body]) => el("div", {},
-          el("h3", {}, h), el("p", { html: body }))))
+        ...PITCH.map((k) => el("div", {},
+          el("h3", {}, t(`pitch.${k}.title`)),
+          el("p", { html: t(`pitch.${k}.body`) }))))
     );
   }
 };

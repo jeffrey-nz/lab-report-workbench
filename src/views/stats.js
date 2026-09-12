@@ -5,6 +5,7 @@ import { state, figureNumber } from "../state.js";
 import { seriesNames, panelName, panelHint } from "../labels.js";
 import { fmtP, stars } from "../lib/stats.js";
 import { saveStatsCsv } from "../exports.js";
+import { t } from "../i18n/index.js";
 
 /** A p-value as a bare table cell: "0.0023", "<0.0001". */
 const pCell = (p) => fmtP(p).replace(/^p\s*=?\s*/, "");
@@ -14,15 +15,15 @@ const sectionLabel = (text) => el("h4", { class: "section-label" }, text);
 function effectRows(model) {
   if (model.effects) return ["between", "within", "interaction"].map((k) => model.effects[k]);
   if (model.F !== undefined && model.df1 !== undefined)
-    return [{ name: "Between groups", df: model.df1, dfError: model.df2, F: model.F, p: model.p }];
+    return [{ name: t("effect.betweenGroups"), df: model.df1, dfError: model.df2, F: model.F, p: model.p }];
   return [];
 }
 
 function anovaTable(model) {
   return el("div", { class: "table-wrap" }, el("table", {},
     el("thead", {}, el("tr", {},
-      el("th", {}, "Source"),
-      ...["df", "F", "p"].map((h) => el("th", { class: "num" }, h)),
+      el("th", {}, t("stats.source")),
+      ...["stats.df", "stats.f", "stats.p"].map((k) => el("th", { class: "num" }, t(k))),
       el("th", {}, ""))),
     el("tbody", {}, ...effectRows(model).map((e) => el("tr", {
       class: e.p < 0.05 ? "is-sig" : ""
@@ -38,18 +39,18 @@ function anovaTable(model) {
 
 function tTestBlock(model) {
   return el("dl", { class: "kv", style: "margin-top:14px" },
-    el("dt", {}, "Test"), el("dd", { style: "font-family:var(--sans)" }, model.test),
-    el("dt", {}, "t (df)"), el("dd", {}, `${model.t.toFixed(2)} (${model.df.toFixed(1)})`),
-    el("dt", {}, "p"), el("dd", {}, pCell(model.p)),
-    el("dt", {}, "Mean difference"), el("dd", {}, model.meanDiff.toFixed(3)),
-    el("dt", {}, "Cohen's d"), el("dd", {}, model.cohensD.toFixed(2)));
+    el("dt", {}, t("stats.test")), el("dd", { style: "font-family:var(--sans)" }, model.test),
+    el("dt", {}, t("stats.tdf")), el("dd", {}, `${model.t.toFixed(2)} (${model.df.toFixed(1)})`),
+    el("dt", {}, t("stats.p")), el("dd", {}, pCell(model.p)),
+    el("dt", {}, t("stats.meanDiff")), el("dd", {}, model.meanDiff.toFixed(3)),
+    el("dt", {}, t("stats.cohensD")), el("dd", {}, model.cohensD.toFixed(2)));
 }
 
 function posthocTable(analysis) {
   return el("div", { class: "table-wrap" }, el("table", {},
     el("thead", {}, el("tr", {},
-      el("th", {}, "Comparison"),
-      ...["Difference", "t", "Adjusted p"].map((h) => el("th", { class: "num" }, h)),
+      el("th", {}, t("stats.comparison")),
+      ...["stats.difference", "stats.t", "stats.adjustedP"].map((k) => el("th", { class: "num" }, t(k))),
       el("th", {}, ""))),
     el("tbody", {}, ...analysis.posthoc.map((c) => el("tr", {
       class: c.p < 0.05 ? "is-sig" : ""
@@ -67,9 +68,9 @@ function summaryTable(analysis, sel) {
   const timed = sel.hasTime && sel.levels.length > 1;
   return el("div", { class: "table-wrap" }, el("table", {},
     el("thead", {}, el("tr", {},
-      el("th", {}, "Group"),
-      timed ? el("th", { class: "num" }, sel.xUnit === "min" ? "Time (min)" : "Time") : null,
-      ...["n", "Mean", "SD", "SEM"].map((h) => el("th", { class: "num" }, h)))),
+      el("th", {}, t("stats.group")),
+      timed ? el("th", { class: "num" }, t(sel.xUnit === "min" ? "stats.timeMin" : "stats.time")) : null,
+      ...["stats.n", "stats.mean", "stats.sd", "stats.sem"].map((k) => el("th", { class: "num" }, t(k))))),
     el("tbody", {}, ...analysis.summary.flatMap((s) => s.points
       .filter((p) => p.n)
       .map((p) => el("tr", {},
@@ -92,15 +93,15 @@ function panelCard(panel, index, names) {
       el("span", { class: "panel-letter" }, letter),
       el("h3", {}, panelName(panel, names)),
       hint ? el("span", { class: "note" }, hint) : null),
-    el("span", { class: "note" }, analysis?.ok ? analysis.nText : "not tested")));
+    el("span", { class: "note" }, analysis?.ok ? analysis.nText : t("stats.notTested"))));
 
   if (!analysis?.ok) {
-    card.append(el("div", { class: "callout callout--warn" }, analysis?.reason || "No analysis."));
+    card.append(el("div", { class: "callout callout--warn" }, analysis?.reason || t("chart.noAnalysis")));
     return card;
   }
 
   card.append(el("div", { class: "callout" },
-    el("strong", {}, "Why this test: "), analysis.designNote));
+    el("strong", {}, t("stats.why")), analysis.designNote));
 
   if (analysis.kind === "two-group") {
     card.append(tTestBlock(analysis.model));
@@ -109,23 +110,23 @@ function panelCard(panel, index, names) {
   }
 
   if (analysis.posthoc.length)
-    card.append(sectionLabel(`Šídák's multiple comparisons vs ${analysis.control}`),
+    card.append(sectionLabel(t("stats.posthocVs", { control: analysis.control })),
                 posthocTable(analysis));
 
-  card.append(sectionLabel("Group summary"), summaryTable(analysis, sel));
+  card.append(sectionLabel(t("stats.summary")), summaryTable(analysis, sel));
 
   if (analysis.outliers.length)
     card.append(el("div", { class: "callout", style: "margin-top:14px" },
-      el("strong", {}, "Possible outlier: "),
-      analysis.outliers.map((o) =>
-        `animal ${o.subject} in ${o.group}${o.x != null ? ` at ${o.x}` : ""} ` +
-        `(value ${o.value}, Grubbs' G = ${o.G.toFixed(3)} against a critical value of ${o.Gcrit.toFixed(3)})`
-      ).join("; ") + ". It is kept in the analysis — say in your text that you noticed it."));
+      el("strong", {}, t("stats.outlier")),
+      analysis.outliers.map((o) => t("stats.outlierOne", {
+        subject: o.subject, group: o.group, at: o.x != null ? ` (${o.x})` : "",
+        value: o.value, g: o.G.toFixed(3), crit: o.Gcrit.toFixed(3)
+      })).join(t("join.clause")) + t("stats.outlierKept")));
 
   if (analysis.dropped.length)
     card.append(el("div", { class: "callout", style: "margin-top:10px" },
-      el("strong", {}, "Animals left out: "),
-      `${[...new Set(analysis.dropped)].join(", ")} — not measured in every selected group, so they cannot enter a repeated-measures test.`));
+      el("strong", {}, t("stats.dropped")),
+      t("stats.droppedWhy", { list: [...new Set(analysis.dropped)].join(t("join.clause")) })));
 
   return card;
 }
@@ -135,29 +136,29 @@ export const view = {
   render(root, { go }) {
     if (!state.panels.length) {
       setChildren(root, 
-        el("div", { class: "view-head" }, el("h2", {}, "Statistics")),
+        el("div", { class: "view-head" }, el("h2", {}, t("stats.heading"))),
         el("div", { class: "card" },
-          emptyState("No panels yet", "Choose a measurement on the Figure step and the tests follow.")));
+          emptyState(t("stats.noPanels"), t("stats.choosePanel"))));
       return;
     }
     const names = seriesNames();
     setChildren(root, 
       el("div", { class: "view-head" },
         el("h2", {}, state.figures.length > 1
-          ? `Statistics for Figure ${figureNumber()}`
-          : "Statistics"),
-        el("p", {}, "The design of your selection chooses the test: animals measured more than once are treated as repeated measures rather than as independent samples. The overall test is reported first, the multiple comparisons after it."),
+          ? t("stats.headingFor", { n: figureNumber() })
+          : t("stats.heading")),
+        el("p", {}, t("stats.lede")),
         state.figures.length > 1
           ? el("p", { class: "note", style: "margin-top:8px" },
-              `Switch figures on the Figure step. The statistics file covers all ${state.figures.length}.`)
+              t("stats.switchHint", { n: state.figures.length }))
           : null),
       el("div", { class: "stack" },
         ...state.panels.map((p, i) => panelCard(p, i, names)),
         el("div", { class: "btn-group" },
           el("button", { type: "button", class: "btn btn--ghost", onclick: saveStatsCsv },
-            "Download all statistics (CSV)"),
+            t("stats.downloadCsv")),
           el("button", { type: "button", class: "btn", onclick: () => go("draft") },
-            "See the drafted text")))
+            t("stats.toDraft"))))
     );
   }
 };

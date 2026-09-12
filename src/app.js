@@ -9,14 +9,15 @@ import { view as figureView } from "./views/figure.js";
 import { view as statsView } from "./views/stats.js";
 import { view as draftView } from "./views/draft.js";
 import { view as submitView } from "./views/submit.js";
+import { initLanguage, getLanguage, setLanguage, LANGUAGES, t } from "./i18n/index.js";
 
 const VIEWS = [
-  { ...loadView, label: "Load", needsData: false },
-  { ...checkView, label: "Check", needsData: true },
-  { ...figureView, label: "Figure", needsData: true },
-  { ...statsView, label: "Statistics", needsData: true },
-  { ...draftView, label: "Draft", needsData: true },
-  { ...submitView, label: "Submit", needsData: false }
+  { ...loadView, labelKey: "nav.load", needsData: false },
+  { ...checkView, labelKey: "nav.check", needsData: true },
+  { ...figureView, labelKey: "nav.figure", needsData: true },
+  { ...statsView, labelKey: "nav.stats", needsData: true },
+  { ...draftView, labelKey: "nav.draft", needsData: true },
+  { ...submitView, labelKey: "nav.submit", needsData: false }
 ];
 
 const root = $("#view-root");
@@ -50,7 +51,7 @@ function renderNav() {
         const next = usable[Math.min(usable.length - 1, Math.max(0, at + dir))];
         if (next) { go(next.id); nav.querySelector('[aria-current="true"]')?.focus(); }
       }
-    }, el("span", { class: "step-n" }, String(i + 1)), v.label);
+    }, el("span", { class: "step-n" }, String(i + 1)), t(v.labelKey));
   }));
 }
 
@@ -69,7 +70,7 @@ function renderView() {
     : null;
   const scroll = window.scrollY;
 
-  root.setAttribute("aria-label", active.label);
+  root.setAttribute("aria-label", t(active.labelKey));
   active.render(root, { go });
 
   if (!key) return;
@@ -80,6 +81,42 @@ function renderView() {
     try { restored.setSelectionRange(caret[0], caret[1]); } catch { /* not a text field */ }
   }
   window.scrollTo({ top: scroll });
+}
+
+/* ---------- language ---------- */
+
+/** A plain two-way switch: the tool speaks two languages, so a toggle will do. */
+function renderLanguage() {
+  const box = $("#language-toggle");
+  setChildren(box, ...LANGUAGES.map((lang) => el("button", {
+    type: "button",
+    class: `segment${lang.code === getLanguage() ? " is-on" : ""}`,
+    lang: lang.code,
+    "aria-pressed": String(lang.code === getLanguage()),
+    title: t("app.languageTitle"),
+    onclick: () => { setLanguage(lang.code); renderAll(); }
+  }, lang.short)));
+  box.setAttribute("aria-label", t("app.language"));
+}
+
+function renderAll() {
+  renderLanguage();
+  renderNav();
+  renderView();
+  const brand = $("#brand-name");
+  const tagline = $("#brand-tagline");
+  const skip = $("#skip-link");
+  const theme = $("#theme-toggle");
+  if (brand) brand.textContent = t("app.title");
+  if (tagline) tagline.textContent = t("app.tagline");
+  if (skip) skip.textContent = t("app.skip");
+  if (theme) {
+    theme.textContent = t("app.theme");
+    theme.title = t("app.themeTitle");
+    theme.setAttribute("aria-label", t("app.themeTitle"));
+  }
+  document.title = t("app.title");
+  $("#steps").setAttribute("aria-label", t("app.stages"));
 }
 
 /* ---------- theme ---------- */
@@ -106,9 +143,9 @@ subscribe(() => {
   renderView();
 });
 
+initLanguage();
 initTheme();
-renderNav();
-renderView();
+renderAll();
 
 // jump straight to a step with the number keys when nothing else has focus
 document.addEventListener("keydown", (e) => {

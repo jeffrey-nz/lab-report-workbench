@@ -66,6 +66,11 @@ describe("proposing figures", () => {
     }
   });
 
+  test("a proposal's title begins with a capital", () => {
+    for (const s of suggested)
+      assert.doesNotMatch(s.title, /^[a-z]/, `"${s.title}" should be capitalised`);
+  });
+
   test("proposals are labelled so the interface can group them", () => {
     for (const s of suggested)
       assert.ok(["course", "tissue", "across", "single"].includes(s.kind),

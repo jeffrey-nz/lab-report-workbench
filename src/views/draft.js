@@ -5,6 +5,7 @@ import { el, copyButton, emptyState, setChildren } from "../dom.js";
 import { state, update, figureNumber, setSpecies, allFigures } from "../state.js";
 import { draftLegend, draftResults, statsSentence, draftTitle } from "../lib/analyse.js";
 import { saveDrafts } from "../exports.js";
+import { t } from "../i18n/index.js";
 
 const countWords = (s) => s.trim().split(/\s+/).filter(Boolean).length;
 
@@ -23,7 +24,7 @@ function draftCard(title, hint, fallback, key, { bare = false } = {}) {
   area.value = value;
 
   function setCount(text) {
-    counter.textContent = `${countWords(text)} words`;
+    counter.textContent = t("draft.words", { n: countWords(text) });
   }
   setCount(value);
 
@@ -42,16 +43,15 @@ function draftCard(title, hint, fallback, key, { bare = false } = {}) {
             setCount(fallback);
             update({}, "draft-reset");
           }
-        }, "Reset to the drafted version")
+        }, t("draft.reset"))
       : null);
 }
 
 /** The title is drafted from every figure in the report, not just this one. */
 function titleDraft() {
   const suggested = draftTitle(allFigures());
-  if (!suggested) return el("p", { class: "note" }, "Build a figure and a title will follow from it.");
-  return draftCard("Suggested title",
-    "Built from the findings your figures actually show.",
+  if (!suggested) return el("p", { class: "note" }, t("draft.titlePending"));
+  return draftCard(t("draft.titleSuggested"), t("draft.titleSuggestedHint"),
     suggested, "title:report", { bare: true });
 }
 
@@ -60,48 +60,44 @@ export const view = {
   render(root, { go }) {
     if (!state.panels.length) {
       setChildren(root, 
-        el("div", { class: "view-head" }, el("h2", {}, "Drafted text")),
+        el("div", { class: "view-head" }, el("h2", {}, t("draft.heading"))),
         el("div", { class: "card" },
-          emptyState("Nothing to draft yet", "Build a figure and the text follows from it.")));
+          emptyState(t("draft.nothing"), t("draft.buildFirst"))));
       return;
     }
     const n = figureNumber();
     const titleCard = el("div", { class: "card" },
       el("div", { class: "card-head" },
-        el("h3", {}, "Report title"),
-        el("span", { class: "note" }, "for the whole report, not this figure")),
-      el("p", { class: "note", style: "margin-bottom:12px" },
-        "A title is marked on naming the aim, the outcome and the species. Name the animals and they will be written in."),
+        el("h3", {}, t("draft.titleCard")),
+        el("span", { class: "note" }, t("draft.titleScope"))),
+      el("p", { class: "note", style: "margin-bottom:12px" }, t("draft.titleHint")),
       el("div", { class: "field", style: "margin-bottom:14px;max-width:340px" },
-        el("label", { class: "field-label", for: "species" }, "Species or model"),
+        el("label", { class: "field-label", for: "species" }, t("draft.species")),
         el("input", {
           type: "text", id: "species", value: state.species,
-          placeholder: "e.g. male C57BL/6J mice", "data-focus-key": "species",
+          placeholder: t("draft.speciesPlaceholder"), "data-focus-key": "species",
           oninput: (e) => setSpecies(e.target.value)
         })),
       titleDraft());
     setChildren(root, 
       el("div", { class: "view-head" },
         el("h2", {}, state.figures.length > 1
-          ? `Drafted text for Figure ${n}`
-          : "Drafted text"),
-        el("p", {}, "A starting point carrying the real numbers, in the structure a figure legend and a results paragraph are marked on. Edit it into your own words before submitting."),
+          ? t("draft.headingFor", { n }) : t("draft.heading")),
+        el("p", {}, t("draft.lede")),
         state.figures.length > 1
           ? el("p", { class: "note", style: "margin-top:8px" },
-              `Your edits are kept per figure; the download covers all ${state.figures.length}.`)
+              t("draft.perFigure", { n: state.figures.length }))
           : null),
       el("div", { class: "stack" },
         titleCard,
-        draftCard(`Figure ${n} legend`,
-          "Names the finding in each panel, then the test, the n, and what the asterisks mean.",
+        draftCard(t("draft.legendCard", { n }), t("draft.legendHint"),
           draftLegend(state.panels, n), `legend:${state.activeId}`),
-        draftCard("Results paragraph",
-          "Says what was done, what the data show, where to look in the figure, and the statistics — in that order.",
+        draftCard(t("draft.resultsCard"), t("draft.resultsHint"),
           draftResults(state.panels, n), `results:${state.activeId}`),
         el("div", { class: "card" },
-          el("div", { class: "card-head" }, el("h3", {}, "Statistics, written out")),
+          el("div", { class: "card-head" }, el("h3", {}, t("draft.statsCard"))),
           el("p", { class: "note", style: "margin-bottom:12px" },
-            "Report the overall test before any multiple comparisons, and give the degrees of freedom with every F or t."),
+            t("draft.statsHint")),
           el("div", { class: "stack" }, ...state.panels.map((p, i) => p.analysis?.ok
             ? el("div", { class: "callout" },
                 el("strong", {}, `(${String.fromCharCode(65 + i)}) `),
@@ -109,9 +105,9 @@ export const view = {
             : null).filter(Boolean))),
         el("div", { class: "btn-group" },
           el("button", { type: "button", class: "btn btn--ghost", onclick: saveDrafts },
-            "Download the draft (Markdown)"),
+            t("draft.download")),
           el("button", { type: "button", class: "btn", onclick: () => go("submit") },
-            "Check before submitting")))
+            t("draft.toSubmit"))))
     );
   }
 };

@@ -2,7 +2,22 @@
    A report is usually one figure per tissue or per assay, not one per
    measurement, and assembling those by hand is the repetitive part. */
 
+import { t, list as listWords } from "../i18n/index.js";
+
 const MAX_PANELS = 6;
+
+/* Names the tool generated are translated; names read from the sheet — WAT,
+   IL-1β — are what the literature uses in any language and stay as they are. */
+const named = (prefix, name) => {
+  const shown = t(`${prefix}.${name}`);
+  return shown.startsWith("\u27e6") ? name : shown;
+};
+const localName = (name) => named("analyte", name);
+const localTissue = (name) => named("tissue", name);
+const localAssay = (unit) => {
+  const kind = assay(unit);
+  return kind ? named("assay", kind) : "";
+};
 
 const assay = (unit) => {
   if (!unit) return "";
@@ -24,11 +39,15 @@ function bySensibleOrder(x, y) {
 
 const columnsFor = (n) => (n <= 1 ? 1 : n <= 4 ? 2 : 3);
 
+/** A title begins with a capital where the language has them; Japanese is
+    unaffected, since the rule only touches an ASCII lower-case first letter. */
+const asTitle = (s) => (/^[a-z]/.test(s) ? s[0].toUpperCase() + s.slice(1) : s);
+
 /** `panels` are {key, groups}; groups null means "whatever the figure uses". */
 const figure = (kind, title, panels, detail) => ({
   kind,
-  title,
-  detail: detail || `${panels.length} panel${panels.length > 1 ? "s" : ""}`,
+  title: asTitle(title),
+  detail: detail || t("figure.panelCount", { n: panels.length }),
   panels,
   cols: columnsFor(panels.length)
 });
@@ -102,13 +121,14 @@ export function suggestFigures(series, meta = null) {
     // where the data allows it, each test earns two panels rather than one
     const pairs = meta ? list.map((s) => tolerancePair(s, meta)) : [];
     if (meta && pairs.length && pairs.every(Boolean)) {
-      out.push(figure("course", `${analyte} over time`, pairs.flat(),
-        `${pairs.length * 2} panels — each test against its control and across durations`));
+        out.push(figure("course", t("suggest.courseN", { analyte: localName(analyte) }), pairs.flat(),
+        t("figure.panelsPaired", { n: pairs.length * 2 })));
       continue;
     }
     out.push(figure("course",
-      list.length > 1 ? `${analyte} over time` : analyte, plain(list),
-      list.length > 1 ? `${list.length} panels — ${sheets.join(", ")}` : null));
+      t(list.length > 1 ? "suggest.courseN" : "suggest.course1", { analyte: localName(analyte) }),
+      plain(list),
+      list.length > 1 ? t("figure.panelsAcross", { n: list.length, sheets: sheets.join(", ") }) : null));
   }
 
   // 2. a figure per tissue: protein and mRNA together while they fit, split by
@@ -129,8 +149,10 @@ export function suggestFigures(series, meta = null) {
       for (let i = 0; i < part.length; i += MAX_PANELS) {
         const slice = part.slice(i, i + MAX_PANELS);
         slice.forEach((s) => used.add(s.key));
-        const names = [...new Set(slice.map((s) => assay(s.unit)).filter(Boolean))];
-        out.push(figure("tissue", `${tissue}${names.length ? " " + names.join(" and ") : ""}`, plain(slice)));
+        const names = [...new Set(slice.map((s) => localAssay(s.unit)).filter(Boolean))];
+        out.push(figure("tissue",
+          t("suggest.tissue", { tissue: localTissue(tissue), assays: listWords(names) }),
+          plain(slice)));
       }
     }
   }
@@ -142,17 +164,21 @@ export function suggestFigures(series, meta = null) {
     const key = `${s.analyte}|${assay(s.unit)}`;
     acrossTissues.set(key, [...(acrossTissues.get(key) || []), s]);
   }
-  for (const [key, list] of acrossTissues) {
-    if (list.length < 3) continue;
+  for (const [key, group] of acrossTissues) {
+    if (group.length < 3) continue;
     const [analyte, kind] = key.split("|");
-    out.push(figure("across", `${analyte}${kind ? " " + kind : ""} across tissues`,
-      plain([...list].sort((a, b) => a.tissue.localeCompare(b.tissue)))));
+    const shownKind = kind ? named("assay", kind) : "";
+    out.push(figure("across",
+      t("suggest.across", { what: `${localName(analyte)}${shownKind ? " " + shownKind : ""}` }),
+      plain([...group].sort((a, b) => a.tissue.localeCompare(b.tissue)))));
   }
 
   // 4. anything still unplaced, offered on its own rather than dropped
   for (const s of pool) {
     if (used.has(s.key)) continue;
-    out.push(figure("single", [s.tissue, s.analyte].filter(Boolean).join(" "), plain([s])));
+    out.push(figure("single", t("suggest.single", {
+      name: [s.tissue && localTissue(s.tissue), localName(s.analyte)].filter(Boolean).join(" ")
+    }), plain([s])));
   }
 
   return out;

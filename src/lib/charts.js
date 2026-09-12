@@ -7,7 +7,11 @@
    and colour-vision deficiency: hue (diet) with lightness (weeks on diet), and
    an independent marker shape. */
 
-const FONT = "Helvetica, Arial, 'Liberation Sans', sans-serif";
+/* Latin faces first, then the CJK faces a translated figure needs — without
+   them the exported PNG renders Japanese labels as empty boxes. */
+const FONT = "Helvetica, Arial, 'Liberation Sans', " +
+  "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', " +
+  "'Noto Sans CJK JP', 'Noto Sans JP', Meiryo, sans-serif";
 const INK = "#111111";
 const AXIS = "#2b2b2b";
 const GRID = "#ededed";
@@ -26,9 +30,10 @@ const RAMPS = {
 const SHAPES = ["circle", "square", "triangle", "diamond", "down", "cross"];
 
 /* What a diet is called in a key, where there is room for words. */
-const DIET_NAMES = { NCD: "Normal chow", HFD: "High-fat diet" };
+const dietName = (code) => msg(`chart.diet.${code}`);
 
 import { groupMeta } from "./parse.js";
+import { t as msg } from "../i18n/index.js";
 
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const n1 = (v) => Number(v).toFixed(1);
@@ -491,7 +496,11 @@ function barPanel(box, sel, analysis, enc, labels, m) {
 }
 
 function shortGroup(g) {
-  return String(g).replace(/^HFD\s*/, "").replace(/^NCD\s*/, "chow ").trim() || String(g);
+  const s = String(g);
+  const hfd = s.replace(/^HFD\s*/, "");
+  if (hfd !== s) return hfd.trim() || s;
+  const ncd = s.replace(/^NCD\s*/, "");
+  return ncd !== s ? msg("chart.chow", { label: ncd.trim() }) : s;
 }
 
 /* ---------- figure assembly ---------- */
@@ -510,7 +519,7 @@ export function renderFigure(panels, { cols = 2, panelW = 360, panelH = 290,
     const box = { x: (i % cols) * panelW, y: Math.floor(i / cols) * panelH, w: panelW, h: panelH };
     body.push(`<text x="${box.x + 6}" y="${box.y + m.letter + 2}" font-family="${FONT}" font-size="${m.letter}" font-weight="700" fill="${INK}">${letters[i]}</text>`);
     if (!p.analysis?.ok) {
-      const lines = wrapLabel(p.analysis?.reason || "No analysis for this selection.", 34);
+      const lines = wrapLabel(p.analysis?.reason || msg("chart.noAnalysis"), 34);
       lines.forEach((l, k) => body.push(
         `<text x="${box.x + box.w / 2}" y="${box.y + box.h / 2 + k * 15}" text-anchor="middle" font-family="${FONT}" font-size="${m.tick}" fill="#8a8a8a">${esc(l)}</text>`));
       return;
@@ -525,7 +534,7 @@ export function renderFigure(panels, { cols = 2, panelW = 360, panelH = 290,
   const entries = enc.legend === "groups" ? enc.groups
     : enc.legend === "diets" ? enc.diets.map((d) => ({ diet: d }))
     : [];
-  const legendText = (e) => (e.diet ? DIET_NAMES[e.diet] || e.diet : e);
+  const legendText = (e) => (e.diet ? dietName(e.diet) : e);
   const legendColor = (e) => (e.diet ? DIET_COLORS[e.diet] || DIET_COLORS.other : enc.colors[e]);
 
   const perRow = Math.max(1, Math.min(5, Math.floor(W / 165)));

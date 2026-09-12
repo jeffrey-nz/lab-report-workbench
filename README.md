@@ -52,6 +52,24 @@ Drop in the spreadsheet you were given and it will:
 It also exports a **tidy CSV** and a **Prism-ready table** (one column per group,
 one row per animal) if you would rather do the graphs in GraphPad yourself.
 
+## Language
+
+The whole tool speaks **English and Japanese** — the interface, the figure axis
+labels and keys, the drafted legends and results paragraphs, the statistical
+terms, and the submission checklist. It starts in whichever of the two your
+browser asks for and falls back to English rather than to a half-translated
+page; the toggle in the header overrides that, and the choice is remembered.
+
+Names that came from your spreadsheet are left alone. WAT, IL-1β and TNF-α are
+what the literature uses in either language, so translating them would be wrong;
+names this tool generated — *body weight*, *blood glucose*, *liver* — are
+translated. The statistics never change: a test run in Japanese reports the same
+F, the same degrees of freedom and the same p as the same test run in English.
+
+To add a third language, copy `src/i18n/en.js`, translate the values, and
+register it in `src/i18n/index.js`. A test holds every catalogue to the same key
+set, so a partial translation fails the build rather than shipping.
+
 ## Privacy
 
 There is no server. The workbook is read in your browser with
@@ -105,6 +123,7 @@ src/
   labels.js             how a measurement is named, everywhere
   exports.js            PNG, SVG, CSV, Markdown, "save everything"
   views/                one module per step
+  i18n/                 en.js, ja.js and the lookup that serves them
   lib/                  parse, stats, analyse, charts, suggest, demo — no DOM
   data/checklist.js     the pre-submission checklist
 ```
@@ -124,7 +143,7 @@ python3 -m http.server 8000     # then open http://localhost:8000
 ## Tests
 
 ```sh
-node --test tests/              # 183 unit tests, no dependencies
+node --test tests/              # 209 unit tests, no dependencies
 ```
 
 The suite covers four things:
@@ -140,8 +159,12 @@ The suite covers four things:
   attributes, no `NaN` in any coordinate, markup in a label escaped, and colour
   that follows the group rather than its position.
 - **The structure**, so the codebase does not drift back to shapes that caused
-  bugs — no inline styles or scripts in `index.html`, no DOM in `src/lib`, and
-  no direct `replaceChildren` (a `null` child renders as the text "null").
+  bugs — no inline styles or scripts in `index.html`, no DOM in `src/lib`, no
+  direct `replaceChildren` (a `null` child renders as the text "null"), and no
+  English prose outside the language catalogues.
+- **Both languages**, by generating every legend, results paragraph, statistics
+  file and figure in each and asserting that no untranslated key, and no
+  difference in any number, reaches the output.
 
 A browser smoke test drives the real page through every step and asserts that no
 placeholder text reaches the DOM:

@@ -1,3 +1,5 @@
+import { t as msg } from "../i18n/index.js";
+
 /* stats.js — distributions and tests used by the report workbench.
    Everything is recomputed from raw animal-level values; nothing here
    trusts the Avg/StDev/StErr cells that ship inside the course workbook. */
@@ -105,7 +107,7 @@ export function tTest(a, b, { welch = true } = {}) {
     t = (ma - mb) / Math.sqrt(sp2 * (1 / na + 1 / nb));
   }
   const pooledSd = Math.sqrt(((na - 1) * va + (nb - 1) * vb) / (na + nb - 2));
-  return { test: welch ? "Welch's unpaired t-test" : "Unpaired Student's t-test",
+  return { test: welch ? msg("test.welch") : msg("test.student"),
            t, df, p: tTwoTailed(t, df), meanDiff: ma - mb,
            cohensD: (ma - mb) / pooledSd, groups: [describe(a), describe(b)] };
 }
@@ -123,7 +125,7 @@ export function oneWayAnova(groups) {
   }
   const df1 = k - 1, df2 = N - k;
   const msB = ssB / df1, msW = ssW / df2, F = msB / msW;
-  return { test: "Ordinary one-way ANOVA", F, df1, df2, p: fSurvival(F, df1, df2),
+  return { test: msg("test.oneWay"), F, df1, df2, p: fSurvival(F, df1, df2),
            ssBetween: ssB, ssWithin: ssW, msBetween: msB, msWithin: msW,
            etaSq: ssB / (ssB + ssW), N, k };
 }
@@ -190,12 +192,12 @@ export function twoWayRmAnova(groups, levelLabels,
   };
 
   return {
-    test: "Two-way repeated-measures ANOVA",
+    test: msg("test.rmMixed"),
     betweenName, withinName, a, b, N,
     effects: {
       between: row(betweenName, ssA, dfA, null, msSubj, dfSubj),
       within: row(withinName, ssB, dfB, null, msError, dfError),
-      interaction: row(`${withinName} × ${betweenName}`, ssAB, dfAB, null, msError, dfError)
+      interaction: row(msg("effect.interaction", { within: withinName, between: betweenName }), ssAB, dfAB, null, msError, dfError)
     },
     msSubject: msSubj, msError, dfSubjectError: dfSubj, dfWithinError: dfError,
     ssTotal
@@ -252,12 +254,12 @@ export function twoWayFullRmAnova(subjects, aLabels, bLabels,
              msError: ssErr / dfErr };
   };
   return {
-    test: "Two-way repeated-measures ANOVA (matched in both factors)",
+    test: msg("test.rmBoth"),
     betweenName: aName, withinName: bName, a, b, N: n,
     effects: {
       between: eff(aName, ssA, dfA, ssAS, dfAS),
       within: eff(bName, ssB, dfB, ssBS, dfBS),
-      interaction: eff(`${bName} \u00d7 ${aName}`, ssAB, dfAB, ssABS, dfABS)
+      interaction: eff(msg("effect.interaction", { within: bName, between: aName }), ssAB, dfAB, ssABS, dfABS)
     },
     msError: ssABS / dfABS, dfError: dfABS
   };

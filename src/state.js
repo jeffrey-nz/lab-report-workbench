@@ -3,6 +3,7 @@
 
 import { seriesIndex, groupMeta } from "./lib/parse.js";
 import { suggestFigures } from "./lib/suggest.js";
+import { t } from "./i18n/index.js";
 import * as A from "./lib/analyse.js";
 import { renderFigure } from "./lib/charts.js";
 
@@ -260,11 +261,8 @@ export function layoutThatFits() {
 /** How much of a page a figure will take once Word has scaled it to the text
     width — the marking criterion is a share of the page, not a size in mm. */
 const PAGE_SHARE = [
-  [0.30, "about a quarter of a page"],
-  [0.45, "about a third of a page"],
-  [0.58, "about half a page"],
-  [0.80, "about two thirds of a page"],
-  [Infinity, "most of a page"]
+  [0.30, "share.quarter"], [0.45, "share.third"], [0.58, "share.half"],
+  [0.80, "share.twoThirds"], [Infinity, "share.most"]
 ];
 
 export function figureExtent() {
@@ -280,7 +278,7 @@ export function figureExtent() {
     mmWide: Math.round(mmWide),
     mmTall: Math.round(mmTall),
     share,
-    shareText: PAGE_SHARE.find(([limit]) => share <= limit)[1],
+    shareText: t(PAGE_SHARE.find(([limit]) => share <= limit)[1]),
     // past this the legend is pushed onto the next page
     leavesRoomForLegend: share <= 0.58
   };
