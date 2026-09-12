@@ -17,6 +17,9 @@ export const state = {
   control: null,
   cols: 2,
   figNumber: 1,
+  size: "comfortable",     // compact | comfortable | large
+  errorBars: "sem",        // sem | sd
+  showPoints: true,
 
   /* derived */
   panels: [], svg: "",
@@ -84,22 +87,59 @@ export function syncGroups() {
     state.control = A.pickControl(state.groups, state.records);
 }
 
+/** Panel geometry per size setting, in CSS pixels at 96 dpi. */
+export const SIZES = {
+  compact:     { w: 300, h: 240, label: "Compact" },
+  comfortable: { w: 360, h: 290, label: "Comfortable" },
+  large:       { w: 430, h: 340, label: "Large" }
+};
+
 /** Recompute every panel and redraw the figure. */
 export function rebuild() {
   state.panels = state.chosen.map((key) => {
     const sel = A.buildSelection(state.records, key, state.groups);
-    const analysis = A.analyse(sel, { control: state.control });
+    const analysis = A.analyse(sel, { control: state.control, errorBars: state.errorBars });
     return { key, sel, analysis, labels: { x: A.xAxisLabel(sel), y: A.axisLabel(sel) } };
   });
   const cols = Math.max(1, Math.min(state.cols, state.panels.length || 1));
-  const wide = cols >= 3;
+  const size = SIZES[state.size] || SIZES.comfortable;
   state.svg = state.panels.length
     ? renderFigure(state.panels, {
         cols, records: state.records,
-        panelW: wide ? 330 : 360,
-        panelH: wide ? 270 : 290
+        panelW: size.w, panelH: size.h,
+        showPoints: state.showPoints
       })
     : "";
+}
+
+/** Usable text width on A4 with 20 mm margins. */
+export const A4_TEXT_MM = 170;
+
+const mmOf = (px) => px / 96 * 25.4;
+
+/**
+ * The widest layout that still fits an A4 text column, preferring to keep the
+ * columns the reader chose and only then shrinking the panels. Returns null
+ * when nothing fits, so the caller can say so rather than offer a dead end.
+ */
+export function layoutThatFits() {
+  const panels = state.panels.length || 1;
+  for (let cols = Math.min(state.cols, panels); cols >= 1; cols--) {
+    for (const size of ["large", "comfortable", "compact"]) {
+      if (mmOf(cols * SIZES[size].w) <= A4_TEXT_MM)
+        return { cols, size, mmWide: Math.round(mmOf(cols * SIZES[size].w)) };
+    }
+  }
+  return null;
+}
+
+/** The printed width of the figure, so the page budget is visible up front. */
+export function figureExtent() {
+  if (!state.svg) return null;
+  const m = state.svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
+  if (!m) return null;
+  const [w, h] = [Number(m[1]), Number(m[2])];
+  return { w, h, mmWide: Math.round(w / 96 * 25.4), mmTall: Math.round(h / 96 * 25.4) };
 }
 
 export function setSeries(keys) {

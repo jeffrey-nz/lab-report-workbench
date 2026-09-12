@@ -89,6 +89,22 @@ export const typoSheet = sheet("Cytokine mRNA levels", [
   [null, null, 3, "0W Chow", null, 1.02]
 ]);
 
+/** Twenty-four time points: the case where every label cannot be printed. */
+export const denseSheet = (() => {
+  const days = Array.from({ length: 24 }, (_, i) => i * 3 + 1);
+  const rows = [
+    ["DENSE BODY WEIGHT"],
+    [],
+    [null, null, "TIME In Days", null, ...days],
+    [null, "Animal ID", "Diet", ...days.map(() => "BW (g)")]
+  ];
+  const grow = (id, diet, start, rate) =>
+    [null, id, diet, ...days.map((d) => +(start + rate * d + ((id * 7 + d) % 5) * 0.1).toFixed(2))];
+  for (let i = 1; i <= 6; i++) rows.push(grow(i, "NCD", 25, 0.05));
+  for (let i = 7; i <= 12; i++) rows.push(grow(i, "HFD", 25, 0.22));
+  return sheet("Dense Weight", rows);
+})();
+
 export const allSheets = [bodyWeightSheet, gttSheet, cytokineSheet, typoSheet];
 
 /* ---------- reference values ---------- */

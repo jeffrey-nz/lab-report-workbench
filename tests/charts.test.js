@@ -2,17 +2,18 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { parseWorkbook } from "../src/lib/parse.js";
 import * as A from "../src/lib/analyse.js";
-import { renderFigure, groupColors, groupShapes, DIET_COLORS } from "../src/lib/charts.js";
-import { allSheets } from "./fixtures.js";
+import { renderFigure, groupColors, groupShapes, planEncoding, xTickPlan, metrics, DIET_COLORS }
+  from "../src/lib/charts.js";
+import { allSheets, denseSheet } from "./fixtures.js";
 
 const { records } = parseWorkbook(allSheets);
 const key = (sheet, tissue, analyte) => `${sheet}|${tissue || ""}|${analyte}`;
 const GTT = key("Glucose Tolerance Data", "", "Blood glucose");
 const WAT = key("Cytokine- Protein", "WAT", "IL-1β");
 
-function panel(k, groups) {
+function panel(k, groups, opts) {
   const sel = A.buildSelection(records, k, groups);
-  const analysis = A.analyse(sel);
+  const analysis = A.analyse(sel, opts);
   return { key: k, sel, analysis, labels: { x: A.xAxisLabel(sel), y: A.axisLabel(sel) } };
 }
 
@@ -94,6 +95,129 @@ describe("colour and shape assignment", () => {
   });
 });
 
+describe("labelling a crowded axis", () => {
+  const m = metrics(360, 290);
+  const ticks = (n, width = 2) =>
+    Array.from({ length: n }, (_, i) => ({ value: i, label: String(i).padStart(width, "0") }));
+
+  test("a handful of labels are all printed, upright", () => {
+    const plan = xTickPlan(ticks(5), 280, m);
+    assert.equal(plan.tilt, false);
+    assert.ok(plan.show.every(Boolean));
+  });
+
+  test("two dozen labels are thinned rather than overlapped", () => {
+    const plan = xTickPlan(ticks(24), 280, m);
+    const shown = plan.show.filter(Boolean).length;
+    assert.ok(shown < 24, "every label was printed into the same space");
+    assert.ok(shown >= 4, `too few labels to read the axis: ${shown}`);
+  });
+
+  test("the range is always readable: first and last are kept", () => {
+    const plan = xTickPlan(ticks(24), 280, m);
+    assert.equal(plan.show[0], true, "the first label is missing");
+    assert.equal(plan.show[plan.show.length - 1], true, "the last label is missing");
+  });
+
+  test("printed labels never sit closer than their own width", () => {
+    const plan = xTickPlan(ticks(24), 280, m);
+    const slot = 280 / 24;
+    const shown = plan.show.map((v, i) => (v ? i : -1)).filter((i) => i >= 0);
+    const widest = 2 * m.tick * 0.58;
+    for (let i = 1; i < shown.length; i++)
+      assert.ok((shown[i] - shown[i - 1]) * slot >= widest,
+        `labels ${shown[i - 1]} and ${shown[i]} overlap`);
+  });
+
+  test("long labels tilt rather than disappear when there are few of them", () => {
+    const long = [["Normal chow"], ["High-fat diet"], ["Chow, week 10"]]
+      .map(([label], i) => ({ value: i, label }));
+    assert.equal(xTickPlan(long, 200, m).tilt, true);
+  });
+});
+
+describe("what carries what", () => {
+  const barPanels = [panel(WAT, ["NCD 0W", "HFD 2W", "HFD 4W"])];
+
+  test("duration goes on the axis and diet into the colour", () => {
+    const enc = planEncoding(barPanels, records);
+    assert.equal(enc.grouped, true);
+    assert.equal(enc.legend, "diets");
+    assert.deepEqual(enc.diets, ["NCD", "HFD"], "control diet comes first");
+  });
+
+  test("the x-axis is labelled with the weeks, not with long group names", () => {
+    const svg = renderFigure(barPanels, { cols: 1, records });
+    for (const week of ["0", "2", "4"]) assert.ok(svg.includes(`>${week}<`), `week ${week} missing`);
+    assert.ok(!svg.includes("chow 0W"), "a group label leaked onto the axis");
+  });
+
+  test("a key that would only repeat the axis is left off", () => {
+    const svg = renderFigure(barPanels, { cols: 1, records });
+    assert.ok(!svg.includes("HFD 2W"), "the legend repeats what the axis already says");
+    assert.ok(svg.includes("High-fat diet"), "the diet key should be present");
+    assert.ok(svg.includes("Normal chow"));
+  });
+
+  test("with one diet there is nothing for a key to say", () => {
+    const enc = planEncoding([panel(WAT, ["HFD 2W", "HFD 4W"])], records);
+    assert.equal(enc.legend, "none");
+    const svg = renderFigure([panel(WAT, ["HFD 2W", "HFD 4W"])], { cols: 1, records });
+    assert.ok(!svg.includes("High-fat diet"), "no key is needed here");
+  });
+
+  test("a time course keeps a key, because the axis is time", () => {
+    const enc = planEncoding([panel(GTT, ["NCD 0W", "HFD 10W"])], records);
+    assert.equal(enc.grouped, false);
+    assert.equal(enc.legend, "groups");
+  });
+
+  test("two diets at one duration sit side by side, not on top of each other", () => {
+    const svg = renderFigure([panel(WAT, ["NCD 0W", "HFD 2W"])], { cols: 1, records });
+    const bars = [...svg.matchAll(/<rect x="([\d.]+)"[^>]*fill-opacity="0\.16"/g)]
+      .map((m) => Number(m[1]));
+    assert.equal(new Set(bars).size, bars.length, "two bars share an x position");
+  });
+});
+
+describe("marking significance without crowding", () => {
+  const dense = parseWorkbook([denseSheet]).records;
+  const densePanel = () => {
+    const key = "Dense Weight||Body weight";
+    const sel = A.buildSelection(dense, key, ["NCD", "HFD"]);
+    return { key, sel, analysis: A.analyse(sel),
+             labels: { x: A.xAxisLabel(sel), y: A.axisLabel(sel) } };
+  };
+  const stars = (svg) => (svg.match(/>\*+</g) || []).length;
+
+  test("a long sustained run is marked once, spanned by a rule", () => {
+    const p = densePanel();
+    const significant = p.analysis.posthoc.filter((c) => c.p < 0.05).length;
+    assert.ok(significant > 8, `the fixture should be significant throughout, got ${significant}`);
+    const svg = renderFigure([p], { cols: 1, records: dense });
+    assert.ok(stars(svg) <= 2, `${stars(svg)} separate marks on one sustained run`);
+    assertWellFormed(svg);
+    assertNoBadNumbers(svg);
+  });
+
+  test("a run reports its weakest result, never overstating it", () => {
+    const p = densePanel();
+    const weakest = Math.max(...p.analysis.posthoc.filter((c) => c.p < 0.05).map((c) => c.p));
+    const svg = renderFigure([p], { cols: 1, records: dense });
+    const shown = (svg.match(/>(\*+)</) || [])[1];
+    const expected = "*".repeat(weakest < 0.0001 ? 4 : weakest < 0.001 ? 3 : weakest < 0.01 ? 2 : 1);
+    assert.equal(shown, expected, "the mark should match the weakest point in the run");
+  });
+
+  test("with room to spare, every significant point keeps its own mark", () => {
+    const p = panel(GTT, ["NCD 0W", "HFD 10W"]);
+    const significant = p.analysis.posthoc.filter((c) => c.p < 0.05).length;
+    const svg = renderFigure([p], { cols: 1, records, panelW: 430, panelH: 340 });
+    assert.equal(stars(svg), significant,
+      "short courses should not be collapsed — it hides strong effects");
+  });
+});
+
 describe("rendering a figure", () => {
   test("a time course produces well-formed SVG with sound numbers", () => {
     const svg = renderFigure([panel(GTT, ["NCD 0W", "HFD 10W"])], { cols: 1, records });
@@ -141,9 +265,9 @@ describe("rendering a figure", () => {
     assert.match(svg, /&amp;/);
   });
 
-  test("a legend names every group present", () => {
-    const svg = renderFigure([panel(WAT, ["NCD 0W", "HFD 2W", "HFD 4W"])], { cols: 1, records });
-    for (const g of ["NCD 0W", "HFD 2W", "HFD 4W"]) assert.ok(svg.includes(g), `${g} missing`);
+  test("a time course names every line in the legend", () => {
+    const svg = renderFigure([panel(GTT, ["NCD 0W", "HFD 10W"])], { cols: 1, records });
+    for (const g of ["NCD 0W", "HFD 10W"]) assert.ok(svg.includes(g), `${g} missing from the legend`);
   });
 
   test("the figure is painted on white, whatever theme the app is in", () => {
@@ -155,6 +279,21 @@ describe("rendering a figure", () => {
     const svg = renderFigure([], { cols: 1, records });
     assertWellFormed(svg);
     assertNoBadNumbers(svg);
+  });
+
+  test("the spread drawn follows the choice of error bar", () => {
+    const withSem = renderFigure([panel(WAT, ["NCD 0W", "HFD 2W"], { errorBars: "sem" })], { cols: 1, records });
+    const withSd = renderFigure([panel(WAT, ["NCD 0W", "HFD 2W"], { errorBars: "sd" })], { cols: 1, records });
+    assert.notEqual(withSem, withSd, "SD bars must be drawn longer than SEM bars");
+    assertNoBadNumbers(withSd);
+  });
+
+  test("the individual animals can be left off", () => {
+    const shown = renderFigure([panel(WAT, ["NCD 0W", "HFD 2W"])], { cols: 1, records, showPoints: true });
+    const hidden = renderFigure([panel(WAT, ["NCD 0W", "HFD 2W"])], { cols: 1, records, showPoints: false });
+    const circles = (svg) => (svg.match(/<circle/g) || []).length;
+    assert.ok(circles(shown) > circles(hidden), "points were not removed");
+    assertWellFormed(hidden);
   });
 
   test("every group in the figure keeps one colour across its panels", () => {

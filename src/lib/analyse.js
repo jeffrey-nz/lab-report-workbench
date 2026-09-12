@@ -83,8 +83,12 @@ export function buildSelection(records, key, selectedGroups) {
            sheet: sample.sheet };
 }
 
-/** mean ± SEM per group per level, plus the raw points for the figure. */
-export function summarise(sel) {
+/**
+ * Mean with its spread per group per level, plus the raw values for the figure.
+ * `err` is whichever of SEM or SD the figure is drawing, so the drawing code
+ * never has to know which was chosen.
+ */
+export function summarise(sel, errorBars = "sem") {
   return sel.groups.map((g) => ({
     group: g,
     points: sel.levels.map((lv) => {
@@ -92,22 +96,23 @@ export function summarise(sel) {
         .map((s) => sel.cell.get(`${g}|${s}|${lv}`))
         .filter((v) => typeof v === "number");
       const d = vals.length ? S.describe(vals) : { n: 0, mean: NaN, sd: NaN, sem: NaN };
-      return { x: lv, values: vals, ...d };
+      return { x: lv, values: vals, ...d, err: errorBars === "sd" ? d.sd : d.sem };
     })
   }));
 }
 
 /* ---------- model choice ---------- */
 
-export function analyse(sel, { control } = {}) {
+export function analyse(sel, { control, errorBars = "sem" } = {}) {
   if (sel.groups.length < 2) return { ok: false, reason: "Select at least two groups to compare." };
   // a figure-wide control need not appear in every panel's own groups
   const ctrl = control && sel.groups.includes(control)
     ? control
     : pickControl(sel.groups, sel.rows);
 
-  if (sel.hasTime && sel.levels.length > 1) return timeCourse(sel, ctrl);
-  return singleTimePoint(sel, ctrl);
+  return sel.hasTime && sel.levels.length > 1
+    ? timeCourse(sel, ctrl, errorBars)
+    : singleTimePoint(sel, ctrl, errorBars);
 }
 
 function matrixFor(sel, groups, subjects) {
@@ -117,7 +122,7 @@ function matrixFor(sel, groups, subjects) {
   }));
 }
 
-function timeCourse(sel, ctrl) {
+function timeCourse(sel, ctrl, errorBars) {
   const levelLabels = sel.levels.map(String);
   const dropped = [];
 
@@ -137,7 +142,7 @@ function timeCourse(sel, ctrl) {
     if (groups.some((g) => g.subjects.length < 2)) return { ok: false, reason: "Too few complete animals per group." };
     const r = S.twoWayRmAnova(groups, levelLabels,
       { betweenName: "Diet", withinName: timeName(sel) });
-    return finishTime(sel, r, ctrl, dropped,
+    return finishTime(sel, r, ctrl, errorBars, dropped,
       `${groups.map((g) => `${g.label} n=${g.subjects.length}`).join(", ")}`,
       "Animals were measured at every time point, so time is a within-subject factor and diet a between-subject factor.");
   }
@@ -161,7 +166,7 @@ function timeCourse(sel, ctrl) {
   const r = S.twoWayFullRmAnova(matrixFor(sel, sel.groups, complete), sel.groups, levelLabels,
     { aName: "Weeks on diet", bName: timeName(sel) });
   const restricted = { ...sel, subjectsBy: new Map(sel.groups.map((g) => [g, complete])) };
-  return finishTime(restricted, r, ctrl, dropped, `n = ${complete.length} animals tested in every group`,
+  return finishTime(restricted, r, ctrl, errorBars, dropped, `n = ${complete.length} animals tested in every group`,
     "The same animals appear in more than one selected group, so both factors are within-subject (repeated measures on both).");
 }
 
@@ -171,9 +176,9 @@ function timeName(sel) {
   return "Time";
 }
 
-function finishTime(sel, r, ctrl, dropped, nText, designNote) {
+function finishTime(sel, r, ctrl, errorBars, dropped, nText, designNote) {
   if (!r) return { ok: false, reason: "The selection is not a complete design — some group × time cells are empty." };
-  const summary = summarise(sel);
+  const summary = summarise(sel, errorBars);
   // per-time-point comparison of every group against the control
   const comparisons = [];
   for (const lv of sel.levels) {
@@ -187,18 +192,18 @@ function finishTime(sel, r, ctrl, dropped, nText, designNote) {
     }
   }
   const posthoc = S.sidakPairwise(comparisons, r.msError, r.dfError ?? r.dfWithinError);
-  return { ok: true, kind: "time", model: r, summary, control: ctrl, posthoc,
+  return { ok: true, kind: "time", model: r, summary, control: ctrl, posthoc, errorBars,
            dropped, nText, designNote, outliers: findOutliers(sel, summary) };
 }
 
-function singleTimePoint(sel, ctrl) {
-  const summary = summarise(sel);
+function singleTimePoint(sel, ctrl, errorBars) {
+  const summary = summarise(sel, errorBars);
   const values = sel.groups.map((g) => summary.find((s) => s.group === g).points[0].values);
   if (values.some((v) => v.length < 2)) return { ok: false, reason: "Each group needs at least two animals." };
 
   if (sel.groups.length === 2) {
     const r = S.tTest(values[0], values[1]);
-    return { ok: true, kind: "two-group", model: r, summary, control: ctrl,
+    return { ok: true, kind: "two-group", model: r, summary, control: ctrl, errorBars,
              posthoc: [], dropped: [],
              nText: sel.groups.map((g, i) => `${g} n=${values[i].length}`).join(", "),
              designNote: "Two independent groups of animals, so an unpaired t-test with Welch's correction for unequal variance.",
@@ -212,7 +217,7 @@ function singleTimePoint(sel, ctrl) {
              a: { mean: a.mean, n: a.n }, b: { mean: b.mean, n: b.n } };
   });
   const posthoc = S.sidakPairwise(comparisons, r.msWithin, r.df2);
-  return { ok: true, kind: "one-way", model: r, summary, control: ctrl, posthoc, dropped: [],
+  return { ok: true, kind: "one-way", model: r, summary, control: ctrl, posthoc, errorBars, dropped: [],
            nText: sel.groups.map((g, i) => `n=${values[i].length}`).join(", "),
            designNote: "A separate cohort of animals was killed at each time point, so the groups are independent.",
            outliers: findOutliers(sel, summary) };
@@ -320,10 +325,11 @@ export function draftLegend(panels, figureNumber = 1) {
     ? (one ? inlineStats(p.analysis) : `(${letters[i]}) ${inlineStats(p.analysis)}`)
     : null).filter(Boolean).join("; ");
 
+  const spread = panels.find((p) => p.analysis?.ok)?.analysis.errorBars === "sd" ? "SD" : "SEM";
   return [
     `Figure ${figureNumber}. ${title}`,
     findings.join(" "),
-    `Data are mean ± SEM${nText ? ", " + nText : ""}.`,
+    `Data are mean ± ${spread}${nText ? ", " + nText : ""}.`,
     `Analysed by ${tests.join(" and ")} (${stats}).`,
     `*p < 0.05, **p < 0.01, ***p < 0.001, ****p < 0.0001 versus ${panels[0].analysis?.control || "control"}.`
   ].filter(Boolean).join(" ");

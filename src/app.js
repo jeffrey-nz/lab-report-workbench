@@ -61,7 +61,12 @@ function renderNav() {
  */
 function renderView() {
   const active = VIEWS.find((v) => v.id === state.step) || VIEWS[0];
-  const key = document.activeElement?.dataset?.focusKey;
+  const focused = document.activeElement;
+  const key = focused?.dataset?.focusKey;
+  // a text field also has a caret, which must not jump to the end mid-word
+  const caret = key && typeof focused.selectionStart === "number"
+    ? [focused.selectionStart, focused.selectionEnd]
+    : null;
   const scroll = window.scrollY;
 
   root.setAttribute("aria-label", active.label);
@@ -69,10 +74,12 @@ function renderView() {
 
   if (!key) return;
   const restored = root.querySelector(`[data-focus-key="${CSS.escape(key)}"]`);
-  if (restored) {
-    restored.focus({ preventScroll: true });
-    window.scrollTo({ top: scroll });
+  if (!restored) return;
+  restored.focus({ preventScroll: true });
+  if (caret && typeof restored.setSelectionRange === "function") {
+    try { restored.setSelectionRange(caret[0], caret[1]); } catch { /* not a text field */ }
   }
+  window.scrollTo({ top: scroll });
 }
 
 /* ---------- theme ---------- */

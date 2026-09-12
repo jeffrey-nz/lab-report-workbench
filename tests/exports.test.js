@@ -1,7 +1,8 @@
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
 import { parseWorkbook, seriesIndex } from "../src/lib/parse.js";
-import { state, loadRecords, setSeries, setGroups } from "../src/state.js";
+import { state, loadRecords, setSeries, setGroups, setFigureOption,
+         layoutThatFits, figureExtent, A4_TEXT_MM, SIZES } from "../src/state.js";
 import { csv, tidyRows, prismRows, statsRows, draftBundle } from "../src/exports.js";
 import { allSheets } from "./fixtures.js";
 
@@ -124,6 +125,38 @@ describe("draft bundle", () => {
     state.edits[`legend-${state.figNumber}`] = "My own wording.";
     assert.match(draftBundle(), /My own wording\./);
     delete state.edits[`legend-${state.figNumber}`];
+  });
+});
+
+describe("fitting the printed page", () => {
+  test("reports the printed size of the figure", () => {
+    setSeries(state.series.filter((s) => s.tissue).slice(0, 4).map((s) => s.key));
+    setFigureOption({ cols: 2, size: "comfortable" });
+    const extent = figureExtent();
+    assert.ok(extent, "a drawn figure should have an extent");
+    assert.equal(extent.mmWide, Math.round(2 * SIZES.comfortable.w / 96 * 25.4));
+  });
+
+  test("offers a layout that genuinely fits, not merely a smaller one", () => {
+    setFigureOption({ cols: 4, size: "large" });
+    assert.ok(figureExtent().mmWide > A4_TEXT_MM, "the fixture should start too wide");
+    const fit = layoutThatFits();
+    assert.ok(fit, "a workable layout exists and should be found");
+    assert.ok(fit.mmWide <= A4_TEXT_MM, `${fit.mmWide} mm still does not fit`);
+    setFigureOption({ cols: fit.cols, size: fit.size });
+    assert.ok(figureExtent().mmWide <= A4_TEXT_MM, "applying the suggestion must fix it");
+  });
+
+  test("keeps as many columns as will fit rather than jumping to one", () => {
+    setFigureOption({ cols: 3, size: "large" });
+    const fit = layoutThatFits();
+    assert.ok(fit.cols >= 2, `dropped to ${fit.cols} column(s) when 2 would fit`);
+  });
+
+  test("a single comfortable panel is already within the page", () => {
+    setSeries([state.series[0].key]);
+    setFigureOption({ cols: 1, size: "comfortable" });
+    assert.ok(figureExtent().mmWide <= A4_TEXT_MM);
   });
 });
 

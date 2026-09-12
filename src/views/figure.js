@@ -3,7 +3,7 @@
 
 import { el, $, emptyState, setChildren } from "../dom.js";
 import * as St from "../state.js";
-import { state } from "../state.js";
+import { state, SIZES, figureExtent, layoutThatFits, A4_TEXT_MM } from "../state.js";
 import { groupColors } from "../lib/charts.js";
 import { seriesNames, panelName, panelHint } from "../labels.js";
 import { saveFigurePng, copyFigure, saveFigureSvg, saveEverything } from "../exports.js";
@@ -12,14 +12,22 @@ const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 /* ---------- pickers ---------- */
 
+let filter = "";
+
 function seriesPicker() {
   const names = seriesNames();
   const all = state.series.map((s) => s.key);
   const allOn = state.chosen.length === all.length;
+  const needle = filter.trim().toLowerCase();
+  const matches = (s) => !needle ||
+    `${names.get(s.key).name} ${names.get(s.key).hint} ${s.sheet}`.toLowerCase().includes(needle);
+  // a panel the filter hides is still in the figure, so say so
+  const hidden = state.series.filter((s) => state.chosen.includes(s.key) && !matches(s));
 
   // grouped by the sheet they came from: a flat list of thirty is a wall
   const bySheet = new Map();
   for (const s of state.series) {
+    if (!matches(s)) continue;
     if (!bySheet.has(s.sheet)) bySheet.set(s.sheet, []);
     bySheet.get(s.sheet).push(s);
   }
@@ -38,11 +46,27 @@ function seriesPicker() {
 
   return el("fieldset", {},
     el("legend", { class: "legend" },
-      el("span", {}, `Panels (${state.chosen.length})`)),
-    el("div", { id: "series-chips", class: "chip-groups" },
-      ...[...bySheet].map(([sheet, list]) => el("div", { class: "chip-group" },
-        el("p", { class: "chip-group-label" }, sheet),
-        el("div", { class: "chips" }, ...list.map(chip))))),
+      el("span", {}, `Panels (${state.chosen.length} of ${all.length})`)),
+    el("input", {
+      type: "search", class: "filter", id: "series-filter", value: filter,
+      placeholder: "Filter measurements…", "aria-label": "Filter measurements",
+      "data-focus-key": "series:filter",
+      oninput: (e) => { filter = e.target.value; St.update({}, "filter"); }
+    }),
+    el("div", { id: "series-chips", class: "chip-groups scroll-y" },
+      bySheet.size
+        ? [...bySheet].map(([sheet, list]) => el("div", { class: "chip-group" },
+            el("p", { class: "chip-group-label" }, sheet),
+            el("div", { class: "chips" }, ...list.map(chip))))
+        : el("p", { class: "note" }, `Nothing matches "${filter}".`)),
+    hidden.length
+      ? el("p", { class: "note filter-note" },
+          `${hidden.length} chosen panel${hidden.length > 1 ? "s are" : " is"} hidden by this filter. `,
+          el("button", {
+            type: "button", class: "btn btn--quiet",
+            onclick: () => { filter = ""; St.update({}, "filter"); }
+          }, "Clear the filter"))
+      : null,
     el("div", { class: "btn-group", style: "margin-top:10px" },
       el("button", {
         type: "button", class: "btn btn--quiet",
@@ -80,7 +104,7 @@ function panelList() {
   const hintOf = (p) => panelHint(p, names);
   return el("fieldset", {},
     el("legend", { class: "legend" }, "Panel order"),
-    el("div", { class: "panel-list" }, ...state.panels.map((p, i) => el("div", {
+    el("div", { class: "panel-list scroll-y" }, ...state.panels.map((p, i) => el("div", {
       class: `panel-item${p.analysis?.ok ? "" : " is-invalid"}`
     },
       el("span", { class: "panel-letter" }, LETTERS[i]),
@@ -109,27 +133,52 @@ function panelList() {
         }, "×"))))));
 }
 
+/** A row of mutually exclusive choices, as buttons rather than a dropdown. */
+function choice(label, value, options, onPick, keyPrefix) {
+  return el("div", { class: "field" },
+    el("span", { class: "field-label" }, label),
+    el("div", { class: "segmented", role: "radiogroup", "aria-label": label },
+      ...options.map(([v, text]) => el("button", {
+        type: "button",
+        class: `segment${v === value ? " is-on" : ""}`,
+        role: "radio",
+        "aria-checked": String(v === value),
+        "data-focus-key": `${keyPrefix}:${v}`,
+        onclick: () => onPick(v)
+      }, text))));
+}
+
 function options() {
-  return el("div", { class: "row", style: "align-items:flex-end" },
+  return el("div", { class: "option-grid" },
+    choice("Layout", state.cols,
+      [1, 2, 3, 4].map((n) => [n, String(n)]),
+      (v) => St.setFigureOption({ cols: v }), "cols"),
+
+    choice("Panel size", state.size,
+      Object.entries(SIZES).map(([k, s]) => [k, s.label]),
+      (v) => St.setFigureOption({ size: v }), "size"),
+
+    choice("Error bars", state.errorBars,
+      [["sem", "± SEM"], ["sd", "± SD"]],
+      (v) => St.setFigureOption({ errorBars: v }), "err"),
+
+    choice("Individual animals", state.showPoints,
+      [[true, "Shown"], [false, "Hidden"]],
+      (v) => St.setFigureOption({ showPoints: v }), "pts"),
+
     el("div", { class: "field" },
-      el("label", { for: "opt-cols" }, "Columns"),
-      el("select", {
-        id: "opt-cols", "data-focus-key": "opt:cols",
-        onchange: (e) => St.setFigureOption({ cols: +e.target.value })
-      }, ...[1, 2, 3, 4].map((n) =>
-        el("option", { value: n, selected: n === state.cols }, n)))),
-    el("div", { class: "field" },
-      el("label", { for: "opt-control" }, "Compared against"),
+      el("label", { class: "field-label", for: "opt-control" }, "Compared against"),
       el("select", {
         id: "opt-control", "data-focus-key": "opt:control",
         onchange: (e) => St.setFigureOption({ control: e.target.value })
       }, ...state.groups.map((g) =>
         el("option", { value: g, selected: g === state.control }, g)))),
+
     el("div", { class: "field" },
-      el("label", { for: "opt-fignum" }, "Figure number"),
+      el("label", { class: "field-label", for: "opt-fignum" }, "Figure number"),
       el("input", {
         type: "number", id: "opt-fignum", min: 1, max: 40, value: state.figNumber,
-        style: "width:78px", "data-focus-key": "opt:fignum",
+        "data-focus-key": "opt:fignum",
         oninput: (e) => St.setFigureOption({ figNumber: +e.target.value || 1 })
       })));
 }
@@ -138,6 +187,8 @@ function options() {
 
 function preview() {
   const broken = state.panels.filter((p) => !p.analysis?.ok);
+  const extent = figureExtent();
+  const fits = layoutThatFits();
   const surface = el("div", { class: "figure-surface", id: "figure-surface" });
   surface.innerHTML = state.svg ||
     `<p class="empty"><strong>Nothing to draw yet</strong>Tick a measurement to add the first panel.</p>`;
@@ -145,7 +196,19 @@ function preview() {
   return el("div", { class: "card builder-main" },
     el("div", { class: "card-head" },
       el("h3", {}, `Figure ${state.figNumber}`),
-      el("span", { class: "note" }, "Drawn on white for pasting into your report")),
+      el("span", { class: "note" }, extent
+        ? `${extent.mmWide} × ${extent.mmTall} mm at 300 dpi`
+        : "Drawn on white for pasting into your report")),
+    extent && extent.mmWide > A4_TEXT_MM
+      ? el("p", { class: "note", style: "margin:-6px 0 12px" },
+          `Wider than an A4 text column (${A4_TEXT_MM} mm), so Word will scale it down and the type with it. `,
+          fits
+            ? el("button", {
+                type: "button", class: "btn btn--quiet",
+                onclick: () => St.setFigureOption({ cols: fits.cols, size: fits.size })
+              }, `Fit to the page (${fits.cols} column${fits.cols > 1 ? "s" : ""}, ${SIZES[fits.size].label.toLowerCase()})`)
+            : "Fewer panels per figure would fit.")
+      : null,
     broken.length
       ? el("div", { class: "callout callout--warn", style: "margin-bottom:12px" },
           el("strong", {}, broken.length === state.panels.length
@@ -180,7 +243,9 @@ export const view = {
           el("div", { class: "card" }, seriesPicker()),
           el("div", { class: "card" }, groupPicker()),
           panelList() ? el("div", { class: "card" }, panelList()) : null,
-          el("div", { class: "card" }, options())),
+          el("div", { class: "card" },
+            el("p", { class: "legend", style: "margin-bottom:12px" }, "Figure options"),
+            options())),
         preview())
     );
   }

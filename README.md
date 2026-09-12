@@ -23,8 +23,12 @@ Drop in the spreadsheet you were given and it will:
    independent-groups analysis. Unpaired *t*-test, one-way ANOVA, mixed-design
    two-way RM ANOVA and fully-within two-way RM ANOVA are all implemented, with
    Šídák-corrected multiple comparisons and Grubbs' test for outliers.
-4. **Draw the figure.** Multi-panel, mean ± SEM, every animal shown, significance
-   marked, lettered A/B/C, exported as **one** 300 dpi PNG or as vector SVG.
+4. **Draw the figure.** Multi-panel, lettered A/B/C, exported as **one** 300 dpi
+   PNG or as vector SVG. Duration goes on the x-axis and diet into the colour, so
+   a six-timepoint experiment needs two colours rather than six; a key that would
+   only repeat the axis is left off. Error bars are your choice of SEM or SD,
+   every animal is shown as a swarm, and the printed width is stated against an
+   A4 text column.
 5. **Draft the words.** A figure legend and a results paragraph carrying the real
    numbers, in the structure these are marked on. They are a starting point to
    rewrite, not something to submit.
@@ -63,9 +67,9 @@ which is what Prism reports as *Šídák's multiple comparisons test*.
 - **A different workbook layout:** `src/lib/parse.js` finds blocks by shape. The
   regular expressions at the top (`ID_RE`, `STAT_RE`, `DIET_RE`, …) are the knobs.
 - **Different colours:** `styles/tokens.css` holds the interface palette;
-  `src/lib/charts.js` holds the two one-hue ordinal ramps used in figures — hue
-  carries the diet, lightness carries time on diet, and marker shape carries
-  identity again so the figure survives a greyscale print.
+  `src/lib/charts.js` holds the categorical slots and the one-hue ordinal ramps.
+  `planEncoding()` is where the figure decides what carries what — read it first
+  if you want to change how groups are distinguished.
 
 ## How the code is laid out
 
