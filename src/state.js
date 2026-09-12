@@ -3,7 +3,7 @@
 
 import { seriesIndex, groupMeta } from "./lib/parse.js";
 import { suggestFigures } from "./lib/suggest.js";
-import { t } from "./i18n/index.js";
+import { t, onLanguageChange } from "./i18n/index.js";
 import * as A from "./lib/analyse.js";
 import { renderFigure } from "./lib/charts.js";
 
@@ -358,6 +358,17 @@ export function setFigureOption(patch) {
   rebuild();
   emit("figure");
 }
+
+/**
+ * The drawn figure and the analysis notes are held as finished text, so a change
+ * of language has to redraw them. Subscribing here rather than in the toggle
+ * means anything that changes the language gets this, not just the button.
+ */
+onLanguageChange(() => {
+  if (!state.loaded) return;
+  rebuild();
+  emit("language");
+});
 
 /* ---------- suggestions ---------- */
 

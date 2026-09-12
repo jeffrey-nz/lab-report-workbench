@@ -4,7 +4,7 @@ import { parseWorkbook, seriesIndex } from "../src/lib/parse.js";
 import { state, loadRecords, setSeries, setGroups, setFigureOption, addFigure,
          switchFigure, removeFigure, buildReport, suggestions, allFigures,
          figureNumber, layoutThatFits, figureExtent, A4_TEXT_MM, A4_TEXT_HEIGHT_MM,
-         SIZES } from "../src/state.js";
+         SIZES, hasKey, chosenKeys, duplicatePanel, toggleSeries } from "../src/state.js";
 import { csv, tidyRows, prismRows, statsRows, draftBundle } from "../src/exports.js";
 import { allSheets } from "./fixtures.js";
 
@@ -246,6 +246,39 @@ describe("a report made of several figures", () => {
     assert.equal(numbers.length, state.figures.length, "a figure is missing from the statistics");
     for (let n = 1; n <= state.figures.length; n++)
       assert.match(draftBundle(), new RegExp(`FIGURE ${n} LEGEND`), `figure ${n} has no draft`);
+  });
+});
+
+describe("the chosen panels, as the interface reads them", () => {
+  test("a measurement with a panel reports as chosen", () => {
+    const key = state.series[0].key;
+    setSeries([key]);
+    assert.equal(hasKey(key), true, "a ticked measurement must read as ticked");
+    assert.deepEqual(chosenKeys(), [key]);
+  });
+
+  test("a measurement with no panel does not", () => {
+    const [first, second] = state.series.map((s) => s.key);
+    setSeries([first]);
+    assert.equal(hasKey(second), false);
+  });
+
+  test("the same measurement twice is still one ticked chip", () => {
+    const key = state.series[0].key;
+    setSeries([key]);
+    duplicatePanel(state.chosen[0].id);
+    assert.equal(state.chosen.length, 2, "the panel should have been duplicated");
+    assert.equal(hasKey(key), true);
+    assert.deepEqual(chosenKeys(), [key], "one measurement, however many panels");
+  });
+
+  test("unticking removes every panel of that measurement", () => {
+    const key = state.series[0].key;
+    setSeries([key]);
+    duplicatePanel(state.chosen[0].id);
+    toggleSeries(key, false);
+    assert.equal(hasKey(key), false);
+    assert.equal(state.chosen.length, 0);
   });
 });
 

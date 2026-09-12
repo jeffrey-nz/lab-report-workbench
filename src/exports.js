@@ -168,19 +168,28 @@ export function saveDrafts() {
 
 /* ---------- everything at once ---------- */
 
+/* A browser handed a dozen downloads in one tick quietly drops the tail of
+   them, so each is offered in its own turn with a gap between. */
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const DOWNLOAD_GAP_MS = 350;
+
 /** Every figure in the report, plus one statistics file and one draft. */
 export async function saveEverything() {
   const figures = allFigures().filter((f) => f.svg);
   if (!figures.length) return toast(t("msg.buildFirst"));
+
+  const write = async (fn) => { fn(); await pause(DOWNLOAD_GAP_MS); };
+
   for (const { number, svg } of figures) {
     try {
-      download(await svgToPng(svg, 300), `figure-${number}.png`);
+      const png = await svgToPng(svg, 300);
+      await write(() => download(png, `figure-${number}.png`));
     } catch {
       toast(t("msg.pngFailedN", { n: number }));
     }
   }
-  saveStatsCsv();
-  saveDrafts();
-  savePrismCsv();
+  await write(saveStatsCsv);
+  await write(saveDrafts);
+  await write(savePrismCsv);
   toast(t("msg.savedEverything", { n: figures.length }));
 }

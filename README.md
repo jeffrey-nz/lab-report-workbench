@@ -166,16 +166,27 @@ The suite covers four things:
   file and figure in each and asserting that no untranslated key, and no
   difference in any number, reaches the output.
 
-A browser smoke test drives the real page through every step and asserts that no
-placeholder text reaches the DOM:
+Two browser tests run against the real page:
 
 ```sh
 npm install --no-save puppeteer
 python3 -m http.server 8731 &
-node tests/smoke.mjs http://localhost:8731/index.html
+
+node tests/smoke.mjs http://localhost:8731/index.html   # every step, both languages
+node tests/e2e.mjs   http://localhost:8731/index.html   # the whole journey
 ```
 
-Both run on every push — see `.github/workflows/test.yml`.
+`e2e.mjs` takes the journey a student takes — load a workbook, read the checks,
+build a results section, look at the statistics, edit a draft, save the work,
+switch language, tick the checklist — and then **opens the files it downloaded**:
+every PNG is checked to be a real image of a sensible pixel size, the statistics
+CSV to cover every figure with the multiple comparisons after the test, and the
+draft to carry the wording you typed. It also feeds the app a file that is not a
+spreadsheet, empties a figure, and reloads mid-way, because the interesting bugs
+live there. Pass a workbook as the second argument, or `demo` to drive the
+built-in synthetic example.
+
+All three run on every push — see `.github/workflows/test.yml`.
 
 ## Licence
 

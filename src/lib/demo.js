@@ -80,7 +80,7 @@ function cytokineSheet() {
         jitter(5.4 * wat, 0.9), jitter(3.2 * wat, 0.6), jitter(0.3 * wat, 0.05), null,
         jitter(7.1 * liver, 1.4), jitter(2.7 * liver, 0.5), jitter(0.27 * liver, 0.05)];
       if (label === "HFD/4W" && k === 2) row[10] = "#VALUE!";   // a failed assay
-      if (label === "HFD/6W" && k === 0) row.push("don't use — haemolysed");
+      if (label === "HFD/6W" && k === 0) row.push("don\u2019t use \u2014 haemolysed");
       g.push(row);
     });
     g.push([]);

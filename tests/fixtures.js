@@ -25,7 +25,7 @@ export const cytokineSheet = sheet("Cytokine- Protein", [
   [],
   [null, null, 11, "HFD/2W", null, 8.0, 4.0, 0.40, null, 12.0, 3.4, 0.40],
   [null, null, 12, "HFD/2W", null, 8.4, 4.2, 0.42, null, "#VALUE!", 3.5, 0.41],
-  [null, null, 13, "HFD/2W", null, 7.6, 3.8, 0.38, null, 11.2, 3.3, 0.39, null, "don't use — haemolysed"],
+  [null, null, 13, "HFD/2W", null, 7.6, 3.8, 0.38, null, 11.2, 3.3, 0.39, null, "don\u2019t use \u2014 haemolysed"],
   [],
   [null, null, 21, "HFD/4W", null, 9.0, 4.5, 0.45, null, 14.0, 3.8, 0.44],
   [null, null, 22, "HFD/4W", null, 9.4, 4.7, 0.47, null, 14.4, 3.9, 0.45],

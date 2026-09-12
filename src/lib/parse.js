@@ -8,11 +8,20 @@
 const ID_RE = /\b(animal|mouse|rat|subject)\s*id\b/i;
 const STAT_RE = /^(avg|average|mean|stdev|std\s*dev|sd|sterr|std\s*err|sem|n)\b/i;
 const DIET_RE = /^(diet|group|diet\s*\/\s*time|treatment)/i;
-const EXCLUDE_RE = /don'?t\s*use|do\s*not\s*use|exclude|omit/i;
+const EXCLUDE_RE = /do\s*n'?t\s*use|do\s*not\s*use|exclude|omit|ignore|discard/i;
 const TIME_RE = /^(-?\d+(?:\.\d+)?)\s*(m|min|mins|minutes|h|hr|hrs|d|day|days|w|wk|wks|weeks?)?$/i;
 const BAD_NUM = /^(#\w+!?|n\/?a|ns|nd|-{1,2}|\.)$/i;
 
-const norm = (v) => (v == null ? "" : String(v).replace(/\s+/g, " ").trim());
+/* Spreadsheets are typed in word processors, so an apostrophe may be a curly
+   one and a dash may be an en dash. Normalising them here means every pattern
+   below can be written with plain ASCII punctuation. */
+const norm = (v) => (v == null ? "" : String(v)
+  .replace(/[\u2018\u2019\u02bc\u00b4]/g, "'")
+  .replace(/[\u201c\u201d]/g, '"')
+  .replace(/[\u2010-\u2015]/g, "-")
+  .replace(/\u00a0/g, " ")
+  .replace(/\s+/g, " ")
+  .trim());
 
 /* ---------- workbook -> grids ---------- */
 

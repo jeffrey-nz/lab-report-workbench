@@ -105,7 +105,7 @@ function seriesPicker() {
     const { name, hint } = names.get(s.key);
     return el("label", { class: "chip" },
       el("input", {
-        type: "checkbox", checked: state.chosen.includes(s.key),
+        type: "checkbox", checked: hasKey(s.key),
         "data-focus-key": `series:${s.key}`,
         onchange: (e) => St.toggleSeries(s.key, e.target.checked)
       }),

@@ -105,6 +105,21 @@ describe("data quality", () => {
     assert.equal(ileum.length, 0);
   });
 
+  test("a note typed with a curly apostrophe still marks the row unusable", () => {
+    // real workbooks come out of a word processor: don\u2019t, not don't
+    const curly = sheet("Curly", [
+      ["Data"], [],
+      [null, "Animal ID", "Diet", "Value"],
+      [null, 1, "NCD", 1.0],
+      [null, 2, "NCD", 1.1, "don\u2019t use \u2014 haemolysed"],
+      [null, 3, "HFD", 2.0]
+    ]);
+    const out = parseWorkbook([curly]);
+    assert.equal(out.issues.filter((i) => i.kind === "excluded").length, 1,
+      "the curly apostrophe hid the exclusion");
+    assert.ok(out.records.filter((r) => r.subject === 2).every((r) => r.excluded));
+  });
+
   test("a row the sheet marks unusable is excluded and reported", () => {
     const flagged = issueOf("excluded");
     assert.equal(flagged.length, 1);

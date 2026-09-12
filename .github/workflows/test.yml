@@ -25,8 +25,11 @@ jobs:
           node-version: '20'
       - name: Install a browser driver
         run: npm install --no-save puppeteer
-      - name: Drive the app end to end
+      - name: Start the app
         run: |
           npx --yes http-server -p 8731 -s . &
           npx wait-on http://127.0.0.1:8731/index.html
-          node tests/smoke.mjs http://127.0.0.1:8731/index.html
+      - name: Smoke test
+        run: node tests/smoke.mjs http://127.0.0.1:8731/index.html
+      - name: End to end
+        run: node tests/e2e.mjs http://127.0.0.1:8731/index.html demo
