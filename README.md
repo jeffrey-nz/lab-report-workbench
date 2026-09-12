@@ -26,13 +26,22 @@ Drop in the spreadsheet you were given and it will:
 4. **Draw the figure.** Multi-panel, lettered A/B/C, exported as **one** 300 dpi
    PNG or as vector SVG. Duration goes on the x-axis and diet into the colour, so
    a six-timepoint experiment needs two colours rather than six; a key that would
-   only repeat the axis is left off. Error bars are your choice of SEM or SD,
-   every animal is shown as a swarm, and the printed width is stated against an
-   A4 text column.
+   only repeat the axis is left off. Error bars are your choice of SEM or SD — it
+   says which question each answers — every animal is shown as a swarm, and the
+   figure reports what share of a page it will take, since a figure past half a
+   page pushes its own legend onto the next one.
+
+   One measurement can appear **twice in a figure with different groups**: a
+   tolerance test shown against its control, and again followed across durations.
+   That is one figure answering two questions, and it is what the marking form
+   means by a logical progression.
 5. **Draft the words.** A figure legend and a results paragraph carrying the real
    numbers, in the structure these are marked on. They are a starting point to
    rewrite, not something to submit.
-6. **Build the whole results section, not one figure.** It reads the workbook and
+6. **Draft the report title.** Marked on naming the aim, the outcome and the
+   species. Name the animals once and it is written from the findings your
+   figures actually show.
+7. **Build the whole results section, not one figure.** It reads the workbook and
    proposes the figures a report would actually contain — a figure per tissue
    with protein above mRNA, time courses collected together, one measurement
    compared across the tissues it was made in. Take them one at a time, or build

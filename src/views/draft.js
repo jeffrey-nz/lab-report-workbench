@@ -2,13 +2,13 @@
    real numbers. Edits are kept in state so switching steps does not lose them. */
 
 import { el, copyButton, emptyState, setChildren } from "../dom.js";
-import { state, update, figureNumber } from "../state.js";
-import { draftLegend, draftResults, statsSentence } from "../lib/analyse.js";
+import { state, update, figureNumber, setSpecies, allFigures } from "../state.js";
+import { draftLegend, draftResults, statsSentence, draftTitle } from "../lib/analyse.js";
 import { saveDrafts } from "../exports.js";
 
 const countWords = (s) => s.trim().split(/\s+/).filter(Boolean).length;
 
-function draftCard(title, hint, fallback, key, { limit } = {}) {
+function draftCard(title, hint, fallback, key, { bare = false } = {}) {
   const value = state.edits[key] ?? fallback;
   const counter = el("span", { class: "note" });
 
@@ -23,15 +23,13 @@ function draftCard(title, hint, fallback, key, { limit } = {}) {
   area.value = value;
 
   function setCount(text) {
-    const n = countWords(text);
-    counter.textContent = limit ? `${n} of about ${limit} words` : `${n} words`;
-    counter.style.color = limit && n > limit * 1.15 ? "var(--warn)" : "";
+    counter.textContent = `${countWords(text)} words`;
   }
   setCount(value);
 
-  return el("div", { class: "card" },
+  return el(bare ? "div" : "div", { class: bare ? "" : "card" },
     el("div", { class: "card-head" },
-      el("h3", {}, title),
+      el(bare ? "h4" : "h3", {}, title),
       el("div", { class: "draft-meta" }, counter, copyButton(() => area.value))),
     el("p", { class: "note", style: "margin-bottom:10px" }, hint),
     area,
@@ -48,6 +46,15 @@ function draftCard(title, hint, fallback, key, { limit } = {}) {
       : null);
 }
 
+/** The title is drafted from every figure in the report, not just this one. */
+function titleDraft() {
+  const suggested = draftTitle(allFigures());
+  if (!suggested) return el("p", { class: "note" }, "Build a figure and a title will follow from it.");
+  return draftCard("Suggested title",
+    "Built from the findings your figures actually show.",
+    suggested, "title:report", { bare: true });
+}
+
 export const view = {
   id: "draft",
   render(root, { go }) {
@@ -59,6 +66,20 @@ export const view = {
       return;
     }
     const n = figureNumber();
+    const titleCard = el("div", { class: "card" },
+      el("div", { class: "card-head" },
+        el("h3", {}, "Report title"),
+        el("span", { class: "note" }, "for the whole report, not this figure")),
+      el("p", { class: "note", style: "margin-bottom:12px" },
+        "A title is marked on naming the aim, the outcome and the species. Name the animals and they will be written in."),
+      el("div", { class: "field", style: "margin-bottom:14px;max-width:340px" },
+        el("label", { class: "field-label", for: "species" }, "Species or model"),
+        el("input", {
+          type: "text", id: "species", value: state.species,
+          placeholder: "e.g. male C57BL/6J mice", "data-focus-key": "species",
+          oninput: (e) => setSpecies(e.target.value)
+        })),
+      titleDraft());
     setChildren(root, 
       el("div", { class: "view-head" },
         el("h2", {}, state.figures.length > 1
@@ -70,6 +91,7 @@ export const view = {
               `Your edits are kept per figure; the download covers all ${state.figures.length}.`)
           : null),
       el("div", { class: "stack" },
+        titleCard,
         draftCard(`Figure ${n} legend`,
           "Names the finding in each panel, then the test, the n, and what the asterisks mean.",
           draftLegend(state.panels, n), `legend:${state.activeId}`),

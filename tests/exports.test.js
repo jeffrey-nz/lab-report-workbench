@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { parseWorkbook, seriesIndex } from "../src/lib/parse.js";
 import { state, loadRecords, setSeries, setGroups, setFigureOption, addFigure,
          switchFigure, removeFigure, buildReport, suggestions, allFigures,
-         figureNumber, layoutThatFits, figureExtent, A4_TEXT_MM, SIZES } from "../src/state.js";
+         figureNumber, layoutThatFits, figureExtent, A4_TEXT_MM, A4_TEXT_HEIGHT_MM,
+         SIZES } from "../src/state.js";
 import { csv, tidyRows, prismRows, statsRows, draftBundle } from "../src/exports.js";
 import { allSheets } from "./fixtures.js";
 
@@ -140,6 +141,20 @@ describe("fitting the printed page", () => {
     assert.equal(extent.mmWide, Math.round(2 * SIZES.comfortable.w / 96 * 25.4));
   });
 
+  test("says what share of a page the figure will take", () => {
+    setFigureOption({ cols: 2, size: "comfortable" });
+    const extent = figureExtent();
+    assert.ok(extent.share > 0 && extent.share < 2, `implausible share: ${extent.share}`);
+    assert.match(extent.shareText, /page/);
+  });
+
+  test("a figure past half a page is flagged, because its legend will not fit", () => {
+    setFigureOption({ cols: 1, size: "large" });
+    const extent = figureExtent();
+    assert.ok(extent.share > 0.58, "four panels in one column should exceed half a page");
+    assert.equal(extent.leavesRoomForLegend, false);
+  });
+
   test("offers a layout that genuinely fits, not merely a smaller one", () => {
     setFigureOption({ cols: 4, size: "large" });
     assert.ok(figureExtent().mmWide > A4_TEXT_MM, "the fixture should start too wide");
@@ -147,13 +162,19 @@ describe("fitting the printed page", () => {
     assert.ok(fit, "a workable layout exists and should be found");
     assert.ok(fit.mmWide <= A4_TEXT_MM, `${fit.mmWide} mm still does not fit`);
     setFigureOption({ cols: fit.cols, size: fit.size });
-    assert.ok(figureExtent().mmWide <= A4_TEXT_MM, "applying the suggestion must fix it");
+    const after = figureExtent();
+    assert.ok(after.mmWide <= A4_TEXT_MM, "applying the suggestion must fix the width");
+    assert.equal(after.leavesRoomForLegend, true, "and must leave room for the legend");
   });
 
-  test("keeps as many columns as will fit rather than jumping to one", () => {
-    setFigureOption({ cols: 3, size: "large" });
+  test("the suggested layout is the roomiest that still fits", () => {
+    setFigureOption({ cols: 4, size: "large" });
     const fit = layoutThatFits();
-    assert.ok(fit.cols >= 2, `dropped to ${fit.cols} column(s) when 2 would fit`);
+    const bigger = { ...fit, size: fit.size === "compact" ? "comfortable" : "large" };
+    setFigureOption({ cols: bigger.cols, size: bigger.size });
+    const grown = figureExtent();
+    assert.ok(grown.mmWide > A4_TEXT_MM || !grown.leavesRoomForLegend,
+      "a larger layout was available and should have been offered");
   });
 
   test("a single comfortable panel is already within the page", () => {

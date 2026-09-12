@@ -300,6 +300,15 @@ export function statsSentence(a) {
          `Followed by Šídák's multiple comparisons test.`;
 }
 
+/**
+ * What the animals were. Titles are marked on naming the species, but a tool
+ * that assumes one has stopped being reusable, so it is supplied per report.
+ */
+let species = "";
+export const setSpecies = (s) => { species = String(s || "").trim(); };
+export const getSpecies = () => species;
+const inSpecies = () => (species ? ` in ${species}` : "");
+
 /** Figure legend in the structure the marking form rewards. */
 export function draftLegend(panels, figureNumber = 1) {
   if (!panels.length) return "";
@@ -352,7 +361,32 @@ function figureTitle(panels) {
     ? "glucose handling"
     : `${listWords(analytes.map(lower))}${where}`;
   const verb = sig ? "alters" : "does not alter";
-  return `High-fat feeding ${verb} ${subject} in male C57BL/6J mice.`;
+  return `High-fat feeding ${verb} ${subject}${inSpecies()}.`;
+}
+
+/**
+ * A title for the whole report: what was done, what came of it, and in what.
+ * Built from the findings actually present, so it changes when they do.
+ */
+export function draftTitle(figures) {
+  const panels = figures.flatMap((f) => f.panels).filter((p) => p.analysis?.ok);
+  if (!panels.length) return "";
+
+  const changed = panels.filter((p) => isSignificant(p.analysis));
+  const tissues = [...new Set(changed.map((p) => p.sel.tissue).filter(Boolean))];
+  const analytes = [...new Set(changed.map((p) => p.sel.analyte).filter((a) => !/glucose|weight/i.test(a)))];
+  const systemic = changed.some((p) => /glucose/i.test(p.sel.analyte));
+  const weight = changed.some((p) => /weight/i.test(p.sel.analyte));
+
+  const clauses = [];
+  if (analytes.length)
+    clauses.push(`${tissues.length > 1 ? "tissue-specific " : ""}changes in ` +
+      `${listWords(analytes.map(lower))}${tissues.length ? ` in ${listWords(tissues.map(tissueWord))}` : ""}`);
+  if (systemic) clauses.push("impaired glucose handling");
+  if (weight) clauses.push("weight gain");
+  if (!clauses.length) return `Effects of high-fat feeding${inSpecies()}.`;
+
+  return cap(`${listWords(clauses)} during high-fat feeding${inSpecies()}.`);
 }
 
 function isSignificant(a) {

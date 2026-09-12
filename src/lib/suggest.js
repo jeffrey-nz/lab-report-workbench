@@ -23,13 +23,34 @@ function bySensibleOrder(x, y) {
 }
 
 const columnsFor = (n) => (n <= 1 ? 1 : n <= 4 ? 2 : 3);
-const figure = (kind, title, list, detail) => ({
+
+/** `panels` are {key, groups}; groups null means "whatever the figure uses". */
+const figure = (kind, title, panels, detail) => ({
   kind,
   title,
-  detail: detail || `${list.length} panel${list.length > 1 ? "s" : ""}`,
-  keys: list.map((s) => s.key),
-  cols: columnsFor(list.length)
+  detail: detail || `${panels.length} panel${panels.length > 1 ? "s" : ""}`,
+  panels,
+  cols: columnsFor(panels.length)
 });
+const plain = (list) => list.map((s) => ({ key: s.key, groups: null }));
+
+/**
+ * A tolerance test answers two questions that need two panels: does the diet
+ * change the response, and does the change depend on how long they were fed?
+ * The first compares control with the longest-fed group; the second follows one
+ * diet across its durations. Returns null unless the data supports both.
+ */
+function tolerancePair(series, meta) {
+  const groups = series.groups.map((g) => ({ label: g, ...meta(g) }));
+  const chow = groups.filter((g) => g.diet === "NCD").sort((a, b) => (a.weeks ?? 0) - (b.weeks ?? 0));
+  const fat = groups.filter((g) => g.diet === "HFD").sort((a, b) => (a.weeks ?? 0) - (b.weeks ?? 0));
+  if (!chow.length || fat.length < 2) return null;
+  const longest = fat[fat.length - 1];
+  return [
+    { key: series.key, groups: [chow[0].label, longest.label] },
+    { key: series.key, groups: fat.map((g) => g.label) }
+  ];
+}
 
 /**
  * The same tissue assay can appear on two sheets — a cytokine panel that also
@@ -59,7 +80,7 @@ function isSupporting(s, all) {
   return all.some((o) => o !== s && o.analyte === s.analyte && o.hasTime);
 }
 
-export function suggestFigures(series) {
+export function suggestFigures(series, meta = null) {
   // A measurement recorded in only one group has nothing to compare, so it can
   // never become a figure with a test behind it. It stays in the list to pick
   // by hand; it is not proposed.
@@ -76,11 +97,18 @@ export function suggestFigures(series) {
   }
   for (const [analyte, list] of byAnalyte) {
     list.forEach((s) => used.add(s.key));
+    const sheets = list.map((s) => s.sheet.replace(/\s*data\s*$/i, ""));
+
+    // where the data allows it, each test earns two panels rather than one
+    const pairs = meta ? list.map((s) => tolerancePair(s, meta)) : [];
+    if (meta && pairs.length && pairs.every(Boolean)) {
+      out.push(figure("course", `${analyte} over time`, pairs.flat(),
+        `${pairs.length * 2} panels — each test against its control and across durations`));
+      continue;
+    }
     out.push(figure("course",
-      list.length > 1 ? `${analyte} over time` : analyte, list,
-      list.length > 1
-        ? `${list.length} panels — ${list.map((s) => s.sheet.replace(/\s*data\s*$/i, "")).join(", ")}`
-        : null));
+      list.length > 1 ? `${analyte} over time` : analyte, plain(list),
+      list.length > 1 ? `${list.length} panels — ${sheets.join(", ")}` : null));
   }
 
   // 2. a figure per tissue: protein and mRNA together while they fit, split by
@@ -102,7 +130,7 @@ export function suggestFigures(series) {
         const slice = part.slice(i, i + MAX_PANELS);
         slice.forEach((s) => used.add(s.key));
         const names = [...new Set(slice.map((s) => assay(s.unit)).filter(Boolean))];
-        out.push(figure("tissue", `${tissue}${names.length ? " " + names.join(" and ") : ""}`, slice));
+        out.push(figure("tissue", `${tissue}${names.length ? " " + names.join(" and ") : ""}`, plain(slice)));
       }
     }
   }
@@ -118,13 +146,13 @@ export function suggestFigures(series) {
     if (list.length < 3) continue;
     const [analyte, kind] = key.split("|");
     out.push(figure("across", `${analyte}${kind ? " " + kind : ""} across tissues`,
-      [...list].sort((a, b) => a.tissue.localeCompare(b.tissue))));
+      plain([...list].sort((a, b) => a.tissue.localeCompare(b.tissue)))));
   }
 
   // 4. anything still unplaced, offered on its own rather than dropped
   for (const s of pool) {
     if (used.has(s.key)) continue;
-    out.push(figure("single", [s.tissue, s.analyte].filter(Boolean).join(" "), [s]));
+    out.push(figure("single", [s.tissue, s.analyte].filter(Boolean).join(" "), plain([s])));
   }
 
   return out;

@@ -1,7 +1,7 @@
 /* state.js — one store, one way to change it. Views read `state` and call
    `update()`; anything that needs to redraw subscribes. */
 
-import { seriesIndex } from "./lib/parse.js";
+import { seriesIndex, groupMeta } from "./lib/parse.js";
 import { suggestFigures } from "./lib/suggest.js";
 import * as A from "./lib/analyse.js";
 import { renderFigure } from "./lib/charts.js";
@@ -15,7 +15,7 @@ export const state = {
   figures: [],           // [{ id, chosen, groups, control, cols, size, errorBars, showPoints }]
   activeId: null,
 
-  chosen: [],            // series keys, in panel order
+  chosen: [],            // [{ id, key, groups }] in panel order; groups null = the figure's
   groups: [],            // group labels in the comparison
   availableGroups: [],
   control: null,
@@ -27,6 +27,8 @@ export const state = {
   /* derived */
   panels: [], svg: "",
 
+  species: "",           // named once, used in every drafted title
+
   /* view */
   step: "load",
   edits: {}              // drafted text, keyed by figure id
@@ -36,6 +38,16 @@ export const state = {
 
 const FIGURE_FIELDS = ["chosen", "groups", "control", "cols", "size", "errorBars", "showPoints"];
 let nextId = 1;
+let nextPanelId = 1;
+
+/** A panel is a measurement, optionally with a group selection of its own. */
+export const makePanel = (key, groups = null) => ({ id: nextPanelId++, key, groups });
+
+/** The groups a panel is actually drawn with. */
+export const panelGroups = (panel, fig = state) => panel.groups || fig.groups;
+
+export const chosenKeys = () => [...new Set(state.chosen.map((p) => p.key))];
+export const hasKey = (key) => state.chosen.some((p) => p.key === key);
 
 export const activeFigure = () => state.figures.find((f) => f.id === state.activeId) || null;
 
@@ -68,7 +80,7 @@ function blankFigure(seed = {}) {
 export function addFigure(seed) {
   snapshot();
   const fig = blankFigure(seed);
-  if (!fig.chosen.length && state.series.length) fig.chosen = [state.series[0].key];
+  if (!fig.chosen.length && state.series.length) fig.chosen = [makePanel(state.series[0].key)];
   state.figures.push(fig);
   restore(fig);
   emit("figures");
@@ -88,7 +100,9 @@ export function duplicateFigure() {
   snapshot();
   const fig = activeFigure();
   if (!fig) return;
-  const copy = blankFigure({ ...fig, chosen: [...fig.chosen], groups: [...fig.groups] });
+  const copy = blankFigure({ ...fig,
+    chosen: fig.chosen.map((p) => makePanel(p.key, p.groups ? [...p.groups] : null)),
+    groups: [...fig.groups] });
   state.figures.splice(state.figures.indexOf(fig) + 1, 0, copy);
   restore(copy);
   emit("figures");
@@ -139,7 +153,7 @@ export function loadRecords({ records, issues, tables }, fileName) {
     figures: [], activeId: null,
     chosen: [], groups: [], control: null, panels: [], svg: "", edits: {}
   });
-  const fig = blankFigure({ chosen: [state.series[0].key] });
+  const fig = blankFigure({ chosen: [makePanel(state.series[0].key)] });
   state.figures.push(fig);
   restore(fig);
   emit("load");
@@ -155,15 +169,21 @@ export function loadRecords({ records, issues, tables }, fileName) {
  */
 export function syncGroups() {
   const groupsOf = new Map(state.series.map((s) => [s.key, s.groups]));
-  const available = new Set(state.chosen.flatMap((key) => groupsOf.get(key) || []));
+  const available = new Set(chosenKeys().flatMap((key) => groupsOf.get(key) || []));
 
   state.availableGroups = A.orderGroups([...available], state.records);
   const picked = new Set(state.groups.filter((g) => available.has(g)));
 
-  for (const key of state.chosen) {
-    const mine = groupsOf.get(key) || [];
+  for (const panel of state.chosen) {
+    // a panel with groups of its own does not need the figure's to suit it
+    if (panel.groups) {
+      panel.groups = panel.groups.filter((g) => available.has(g));
+      if (panel.groups.length >= 2) continue;
+      panel.groups = null;
+    }
+    const mine = groupsOf.get(panel.key) || [];
     if (mine.filter((g) => picked.has(g)).length >= 2) continue;
-    for (const g of A.defaultGroups(state.records, key)) picked.add(g);
+    for (const g of A.defaultGroups(state.records, panel.key)) picked.add(g);
   }
 
   state.groups = A.orderGroups([...picked], state.records);
@@ -181,10 +201,10 @@ export const SIZES = {
 
 /** Panels and SVG for any figure record, without touching what is on screen. */
 export function computeFigure(fig) {
-  const panels = fig.chosen.map((key) => {
-    const sel = A.buildSelection(state.records, key, fig.groups);
+  const panels = fig.chosen.map((panel) => {
+    const sel = A.buildSelection(state.records, panel.key, panelGroups(panel, fig));
     const analysis = A.analyse(sel, { control: fig.control, errorBars: fig.errorBars });
-    return { key, sel, analysis, labels: { x: A.xAxisLabel(sel), y: A.axisLabel(sel) } };
+    return { ...panel, sel, analysis, labels: { x: A.xAxisLabel(sel), y: A.axisLabel(sel) } };
   });
   const cols = Math.max(1, Math.min(fig.cols, panels.length || 1));
   const size = SIZES[fig.size] || SIZES.comfortable;
@@ -207,8 +227,9 @@ export function rebuild() {
   state.svg = svg;
 }
 
-/** Usable text width on A4 with 20 mm margins. */
+/** Usable text area on A4 with 20 mm margins. */
 export const A4_TEXT_MM = 170;
+export const A4_TEXT_HEIGHT_MM = 250;
 
 const mmOf = (px) => px / 96 * 25.4;
 
@@ -218,38 +239,99 @@ const mmOf = (px) => px / 96 * 25.4;
  * when nothing fits, so the caller can say so rather than offer a dead end.
  */
 export function layoutThatFits() {
-  const panels = state.panels.length || 1;
-  for (let cols = Math.min(state.cols, panels); cols >= 1; cols--) {
+  const count = state.panels.length || 1;
+  const candidates = [];
+  for (let cols = 1; cols <= Math.min(4, count); cols++) {
     for (const size of ["large", "comfortable", "compact"]) {
-      if (mmOf(cols * SIZES[size].w) <= A4_TEXT_MM)
-        return { cols, size, mmWide: Math.round(mmOf(cols * SIZES[size].w)) };
+      const rows = Math.ceil(count / cols);
+      const mmWide = mmOf(cols * SIZES[size].w);
+      const scale = Math.min(1, A4_TEXT_MM / mmWide);
+      const share = (mmOf(rows * SIZES[size].h) * scale) / A4_TEXT_HEIGHT_MM;
+      if (mmWide <= A4_TEXT_MM && share <= 0.58)
+        candidates.push({ cols, size, mmWide: Math.round(mmWide), share });
     }
   }
-  return null;
+  if (!candidates.length) return null;
+  // the roomiest layout that still leaves the page a legend
+  return candidates.sort((a, b) => b.share - a.share || b.cols - a.cols)[0];
 }
 
 /** The printed width of the figure, so the page budget is visible up front. */
+/** How much of a page a figure will take once Word has scaled it to the text
+    width — the marking criterion is a share of the page, not a size in mm. */
+const PAGE_SHARE = [
+  [0.30, "about a quarter of a page"],
+  [0.45, "about a third of a page"],
+  [0.58, "about half a page"],
+  [0.80, "about two thirds of a page"],
+  [Infinity, "most of a page"]
+];
+
 export function figureExtent() {
   if (!state.svg) return null;
   const m = state.svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
   if (!m) return null;
   const [w, h] = [Number(m[1]), Number(m[2])];
-  return { w, h, mmWide: Math.round(w / 96 * 25.4), mmTall: Math.round(h / 96 * 25.4) };
+  const mmWide = mmOf(w), mmTall = mmOf(h);
+  const scale = Math.min(1, A4_TEXT_MM / mmWide);
+  const share = (mmTall * scale) / A4_TEXT_HEIGHT_MM;
+  return {
+    w, h,
+    mmWide: Math.round(mmWide),
+    mmTall: Math.round(mmTall),
+    share,
+    shareText: PAGE_SHARE.find(([limit]) => share <= limit)[1],
+    // past this the legend is pushed onto the next page
+    leavesRoomForLegend: share <= 0.58
+  };
 }
 
 export function setSeries(keys) {
-  state.chosen = keys;
+  state.chosen = keys.map((k) => (typeof k === "string" ? makePanel(k) : k));
   syncGroups();
   rebuild();
   emit("series");
 }
 
+/** Ticking a measurement adds one panel; unticking removes every panel of it. */
 export function toggleSeries(key, on) {
-  setSeries(on ? [...state.chosen, key] : state.chosen.filter((k) => k !== key));
+  setSeries(on
+    ? [...state.chosen, makePanel(key)]
+    : state.chosen.filter((p) => p.key !== key));
 }
 
-export function movePanel(key, delta) {
-  const i = state.chosen.indexOf(key);
+/**
+ * The same measurement can appear twice in a figure with different groups — a
+ * tolerance test shown against its control and again across durations — so a
+ * copy starts with the figure's current groups as its own.
+ */
+export function duplicatePanel(id) {
+  const i = state.chosen.findIndex((p) => p.id === id);
+  if (i < 0) return;
+  const copy = makePanel(state.chosen[i].key, [...panelGroups(state.chosen[i])]);
+  state.chosen = [...state.chosen.slice(0, i + 1), copy, ...state.chosen.slice(i + 1)];
+  rebuild();
+  emit("panels");
+}
+
+export function removePanel(id) {
+  state.chosen = state.chosen.filter((p) => p.id !== id);
+  syncGroups();
+  rebuild();
+  emit("panels");
+}
+
+/** Give one panel its own groups, or pass null to follow the figure again. */
+export function setPanelGroups(id, groups) {
+  const panel = state.chosen.find((p) => p.id === id);
+  if (!panel) return;
+  panel.groups = groups ? A.orderGroups(groups, state.records) : null;
+  rebuild();
+  emit("panels");
+}
+
+export function movePanel(id, delta) {
+  const i = state.chosen.findIndex((p) => p.id === id);
   const j = i + delta;
   if (i < 0 || j < 0 || j >= state.chosen.length) return;
   const next = [...state.chosen];
@@ -267,6 +349,12 @@ export function setGroups(groups) {
   emit("groups");
 }
 
+export function setSpecies(value) {
+  state.species = value;
+  A.setSpecies(value);
+  emit("species");
+}
+
 export function setFigureOption(patch) {
   Object.assign(state, patch);
   rebuild();
@@ -275,11 +363,15 @@ export function setFigureOption(patch) {
 
 /* ---------- suggestions ---------- */
 
-export const suggestions = () => (state.loaded ? suggestFigures(state.series) : []);
+export const suggestions = () =>
+  (state.loaded ? suggestFigures(state.series, groupMeta(state.records)) : []);
 
 /** Point the figure being worked on at a suggested set of panels. */
 export function applySuggestion(suggestion) {
-  state.chosen = suggestion.keys.filter((k) => state.series.some((s) => s.key === k));
+  const known = (k) => state.series.some((s) => s.key === k);
+  state.chosen = suggestion.panels
+    .filter((p) => known(p.key))
+    .map((p) => makePanel(p.key, p.groups ? [...p.groups] : null));
   state.cols = suggestion.cols;
   state.groups = [];                       // let the defaults follow the new panels
   syncGroups();
@@ -294,7 +386,10 @@ export function buildReport(list) {
   state.figures = [];
   state.activeId = null;
   for (const suggestion of list) {
-    const fig = blankFigure({ chosen: suggestion.keys, cols: suggestion.cols });
+    const fig = blankFigure({
+      chosen: suggestion.panels.map((p) => makePanel(p.key, p.groups ? [...p.groups] : null)),
+      cols: suggestion.cols
+    });
     state.figures.push(fig);
   }
   restore(state.figures[0]);

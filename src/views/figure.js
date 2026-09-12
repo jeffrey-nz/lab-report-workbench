@@ -4,7 +4,7 @@
 import { el, $, emptyState, setChildren } from "../dom.js";
 import * as St from "../state.js";
 import { state, SIZES, figureExtent, layoutThatFits, A4_TEXT_MM,
-         figureNumber, suggestions } from "../state.js";
+         figureNumber, suggestions, hasKey, panelGroups } from "../state.js";
 import { groupColors } from "../lib/charts.js";
 import { seriesNames, panelName, panelHint } from "../labels.js";
 import { saveFigurePng, copyFigure, saveFigureSvg, saveEverything } from "../exports.js";
@@ -85,12 +85,12 @@ let filter = "";
 function seriesPicker() {
   const names = seriesNames();
   const all = state.series.map((s) => s.key);
-  const allOn = state.chosen.length === all.length;
+  const allOn = new Set(state.chosen.map((p) => p.key)).size === all.length;
   const needle = filter.trim().toLowerCase();
   const matches = (s) => !needle ||
     `${names.get(s.key).name} ${names.get(s.key).hint} ${s.sheet}`.toLowerCase().includes(needle);
   // a panel the filter hides is still in the figure, so say so
-  const hidden = state.series.filter((s) => state.chosen.includes(s.key) && !matches(s));
+  const hidden = state.series.filter((s) => hasKey(s.key) && !matches(s));
 
   // grouped by the sheet they came from: a flat list of thirty is a wall
   const bySheet = new Map();
@@ -164,41 +164,91 @@ function groupPicker() {
       g))));
 }
 
-/** The panel order decides the letters your report text refers to. */
-function panelList() {
-  if (state.panels.length < 2) return null;
-  const names = seriesNames();
-  const nameOf = (p) => panelName(p, names);
-  const hintOf = (p) => panelHint(p, names);
-  return el("fieldset", {},
-    el("legend", { class: "legend" }, "Panel order"),
-    el("div", { class: "panel-list scroll-y" }, ...state.panels.map((p, i) => el("div", {
-      class: `panel-item${p.analysis?.ok ? "" : " is-invalid"}`
-    },
+/**
+ * The panels of this figure in order — the letters the report text refers to.
+ * A panel can carry a group selection of its own, which is how one measurement
+ * appears twice in a figure answering two different questions.
+ */
+let openPanel = null;
+
+function panelRow(p, i, names) {
+  const own = !!p.groups;
+  const groups = panelGroups(p);
+  const expanded = openPanel === p.id;
+  const colors = groupColors(state.availableGroups, state.records);
+  const hint = panelHint(p, names);
+
+  const summary = el("button", {
+    type: "button", class: `panel-groups${own ? " is-own" : ""}`,
+    "aria-expanded": String(expanded), "data-focus-key": `pgroups:${p.id}`,
+    title: own ? "This panel has groups of its own" : "Uses the figure's groups",
+    onclick: () => { openPanel = expanded ? null : p.id; St.update({}, "panel-groups"); }
+  }, own ? groups.join(", ") : "Figure groups", el("span", { class: "caret" }, expanded ? "▾" : "▸"));
+
+  const editor = !expanded ? null : el("div", { class: "panel-group-editor" },
+    el("div", { class: "chips" }, ...state.availableGroups.map((g) => el("label", { class: "chip" },
+      el("input", {
+        type: "checkbox", checked: groups.includes(g),
+        "data-focus-key": `pg:${p.id}:${g}`,
+        onchange: (e) => St.setPanelGroups(p.id, e.target.checked
+          ? [...groups, g]
+          : groups.filter((x) => x !== g))
+      }),
+      el("span", { class: "swatch", style: `background:${colors[g] || "var(--line-2)"}` }), g))),
+    own
+      ? el("button", {
+          type: "button", class: "btn btn--quiet", style: "margin-top:8px",
+          onclick: () => St.setPanelGroups(p.id, null)
+        }, "Follow the figure's groups again")
+      : null);
+
+  return el("div", { class: `panel-item${p.analysis?.ok ? "" : " is-invalid"}${expanded ? " is-open" : ""}` },
+    el("div", { class: "panel-row" },
       el("span", { class: "panel-letter" }, LETTERS[i]),
       el("span", { class: "panel-name" },
-        nameOf(p),
+        panelName(p, names),
         p.analysis?.ok
-          ? (hintOf(p) ? el("small", {}, hintOf(p)) : null)
+          ? (hint ? el("small", {}, hint) : null)
           : el("small", {}, "no test fits this selection")),
       el("span", { class: "panel-actions" },
         el("button", {
           type: "button", class: "btn btn--icon", disabled: i === 0,
-          title: "Move up", "aria-label": `Move ${nameOf(p)} earlier`,
-          "data-focus-key": `up:${p.key}`,
-          onclick: () => St.movePanel(p.key, -1)
+          title: "Move up", "aria-label": `Move ${panelName(p, names)} earlier`,
+          "data-focus-key": `up:${p.id}`,
+          onclick: () => St.movePanel(p.id, -1)
         }, "↑"),
         el("button", {
           type: "button", class: "btn btn--icon", disabled: i === state.panels.length - 1,
-          title: "Move down", "aria-label": `Move ${nameOf(p)} later`,
-          "data-focus-key": `down:${p.key}`,
-          onclick: () => St.movePanel(p.key, 1)
+          title: "Move down", "aria-label": `Move ${panelName(p, names)} later`,
+          "data-focus-key": `down:${p.id}`,
+          onclick: () => St.movePanel(p.id, 1)
         }, "↓"),
         el("button", {
           type: "button", class: "btn btn--icon",
-          title: "Remove from the figure", "aria-label": `Remove ${nameOf(p)}`,
-          onclick: () => St.toggleSeries(p.key, false)
-        }, "×"))))));
+          title: "Show this measurement again with different groups",
+          "aria-label": `Add another panel of ${panelName(p, names)}`,
+          "data-focus-key": `dup:${p.id}`,
+          onclick: () => { openPanel = null; St.duplicatePanel(p.id); }
+        }, "⧉"),
+        el("button", {
+          type: "button", class: "btn btn--icon",
+          title: "Remove this panel", "aria-label": `Remove ${panelName(p, names)}`,
+          "data-focus-key": `rm:${p.id}`,
+          onclick: () => St.removePanel(p.id)
+        }, "×"))),
+    summary,
+    editor);
+}
+
+function panelList() {
+  if (!state.panels.length) return null;
+  const names = seriesNames();
+  return el("fieldset", {},
+    el("legend", { class: "legend" }, "Panels in this figure"),
+    el("div", { class: "panel-list scroll-y" },
+      ...state.panels.map((p, i) => panelRow(p, i, names))),
+    el("p", { class: "note", style: "margin-top:10px" },
+      "⧉ adds the same measurement again, so one figure can answer two questions about it."));
 }
 
 /** A row of mutually exclusive choices, as buttons rather than a dropdown. */
@@ -226,9 +276,14 @@ function options() {
       Object.entries(SIZES).map(([k, s]) => [k, s.label]),
       (v) => St.setFigureOption({ size: v }), "size"),
 
-    choice("Error bars", state.errorBars,
-      [["sem", "± SEM"], ["sd", "± SD"]],
-      (v) => St.setFigureOption({ errorBars: v }), "err"),
+    el("div", { class: "field" },
+      choice("Error bars", state.errorBars,
+        [["sem", "± SEM"], ["sd", "± SD"]],
+        (v) => St.setFigureOption({ errorBars: v }), "err"),
+      el("p", { class: "note", style: "margin-top:6px" },
+        state.errorBars === "sem"
+          ? "How precisely the mean is known. If your instructions ask you to show variability within the population, that is SD."
+          : "How much the animals themselves vary — the spread of the population.")),
 
     choice("Individual animals", state.showPoints,
       [[true, "Shown"], [false, "Hidden"]],
@@ -273,18 +328,27 @@ function preview() {
     el("div", { class: "card-head" },
       el("h3", {}, `Figure ${figureNumber()}`),
       el("span", { class: "note" }, extent
-        ? `${extent.mmWide} × ${extent.mmTall} mm at 300 dpi`
+        ? `${extent.mmWide} × ${extent.mmTall} mm — ${extent.shareText}`
         : "Drawn on white for pasting into your report")),
-    extent && extent.mmWide > A4_TEXT_MM
+    extent && !extent.leavesRoomForLegend
       ? el("p", { class: "note", style: "margin:-6px 0 12px" },
-          `Wider than an A4 text column (${A4_TEXT_MM} mm), so Word will scale it down and the type with it. `,
+          `Taller than half a page, so its legend will start on the next one. `,
           fits
             ? el("button", {
                 type: "button", class: "btn btn--quiet",
                 onclick: () => St.setFigureOption({ cols: fits.cols, size: fits.size })
               }, `Fit to the page (${fits.cols} column${fits.cols > 1 ? "s" : ""}, ${SIZES[fits.size].label.toLowerCase()})`)
-            : "Fewer panels per figure would fit.")
-      : null,
+            : "Fewer panels in this figure would fit.")
+      : extent && extent.mmWide > A4_TEXT_MM
+        ? el("p", { class: "note", style: "margin:-6px 0 12px" },
+            `Wider than an A4 text column (${A4_TEXT_MM} mm), so Word will scale it down and the type with it. `,
+            fits
+              ? el("button", {
+                  type: "button", class: "btn btn--quiet",
+                  onclick: () => St.setFigureOption({ cols: fits.cols, size: fits.size })
+                }, `Fit to the page (${fits.cols} column${fits.cols > 1 ? "s" : ""}, ${SIZES[fits.size].label.toLowerCase()})`)
+              : "Fewer panels in this figure would fit.")
+        : null,
     broken.length
       ? el("div", { class: "callout callout--warn", style: "margin-bottom:12px" },
           el("strong", {}, broken.length === state.panels.length
@@ -322,7 +386,7 @@ export const view = {
           el("div", { class: "card" }, suggestionPanel()),
           el("div", { class: "card" }, seriesPicker()),
           el("div", { class: "card" }, groupPicker()),
-          panelList() ? el("div", { class: "card" }, panelList()) : null,
+          state.panels.length ? el("div", { class: "card" }, panelList()) : null,
           el("div", { class: "card" },
             el("p", { class: "legend", style: "margin-bottom:12px" }, "Figure options"),
             options())),
