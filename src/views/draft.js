@@ -2,7 +2,7 @@
    real numbers. Edits are kept in state so switching steps does not lose them. */
 
 import { el, copyButton, emptyState, setChildren } from "../dom.js";
-import { state, update } from "../state.js";
+import { state, update, figureNumber } from "../state.js";
 import { draftLegend, draftResults, statsSentence } from "../lib/analyse.js";
 import { saveDrafts } from "../exports.js";
 
@@ -58,18 +58,24 @@ export const view = {
           emptyState("Nothing to draft yet", "Build a figure and the text follows from it.")));
       return;
     }
-    const n = state.figNumber;
+    const n = figureNumber();
     setChildren(root, 
       el("div", { class: "view-head" },
-        el("h2", {}, "Drafted text"),
-        el("p", {}, "A starting point carrying the real numbers, in the structure a figure legend and a results paragraph are marked on. Edit it into your own words before submitting.")),
+        el("h2", {}, state.figures.length > 1
+          ? `Drafted text for Figure ${n}`
+          : "Drafted text"),
+        el("p", {}, "A starting point carrying the real numbers, in the structure a figure legend and a results paragraph are marked on. Edit it into your own words before submitting."),
+        state.figures.length > 1
+          ? el("p", { class: "note", style: "margin-top:8px" },
+              `Your edits are kept per figure; the download covers all ${state.figures.length}.`)
+          : null),
       el("div", { class: "stack" },
         draftCard(`Figure ${n} legend`,
           "Names the finding in each panel, then the test, the n, and what the asterisks mean.",
-          draftLegend(state.panels, n), `legend-${n}`),
+          draftLegend(state.panels, n), `legend:${state.activeId}`),
         draftCard("Results paragraph",
           "Says what was done, what the data show, where to look in the figure, and the statistics — in that order.",
-          draftResults(state.panels, n), `results-${n}`),
+          draftResults(state.panels, n), `results:${state.activeId}`),
         el("div", { class: "card" },
           el("div", { class: "card-head" }, el("h3", {}, "Statistics, written out")),
           el("p", { class: "note", style: "margin-bottom:12px" },

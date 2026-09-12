@@ -94,8 +94,13 @@ export function planEncoding(panels, records) {
   const diets = [...new Set(groups.map((g) => meta(g).diet).filter(Boolean))]
     .sort((a, b) => (a === "NCD" ? -1 : b === "NCD" ? 1 : a.localeCompare(b)));
 
-  const grouped = !anyLine && groups.length > 1 &&
-    groups.every((g) => meta(g).weeks !== null && meta(g).diet);
+  /** A panel can put duration on its axis whenever its own groups allow it. */
+  const canGroup = (panelGroups) => panelGroups.length > 1 &&
+    panelGroups.every((g) => meta(g).weeks !== null && meta(g).diet);
+
+  // Colour follows the diet only when that is the whole story of the figure;
+  // a time course needs every group told apart, so it keeps the ramp.
+  const grouped = !anyLine && canGroup(groups);
 
   const ordered = groups.sort((a, b) => {
     const A = meta(a), B = meta(b);
@@ -108,7 +113,7 @@ export function planEncoding(panels, records) {
     : groupColors(ordered, records);
 
   return {
-    meta, groups: ordered, diets, grouped, anyLine, colors,
+    meta, groups: ordered, diets, grouped, canGroup, anyLine, colors,
     shapes: groupShapes(ordered),
     // a legend that would only repeat the x-axis is left off
     legend: anyLine ? "groups" : grouped && diets.length > 1 ? "diets" : "none"
@@ -385,9 +390,12 @@ function barPanel(box, sel, analysis, enc, labels, m) {
   const summary = analysis.summary.filter((s) => s.points[0].n);
   if (!summary.length) return "";
 
-  // One column per duration when duration is on the axis; otherwise one per group.
+  // One column per duration when this panel's groups allow it, otherwise one
+  // column per group. A neighbouring time course does not force long labels
+  // back onto this axis.
+  const groupHere = enc.canGroup(summary.map((s) => s.group));
   let columns;
-  if (enc.grouped) {
+  if (groupHere) {
     const byWeek = new Map();
     for (const s of summary) {
       const w = enc.meta(s.group).weeks;
@@ -446,7 +454,7 @@ function barPanel(box, sel, analysis, enc, labels, m) {
       const p = s.points[0];
       const c = enc.colors[s.group];
       // a shape is only worth carrying when colour alone cannot tell groups apart
-      const shape = enc.grouped ? "circle" : enc.shapes[s.group];
+      const shape = enc.grouped ? "circle" : enc.shapes[s.group];   // colour alone suffices when it means diet
       const offsets = beeswarm(p.values, yScale, m.dot * 1.25, barW * 0.6);
       p.values.forEach((v, k) =>
         out.push(marker(shape, x + offsets[k], yScale(v), m.dot, "#ffffff", c, 1.15 * m.k)));

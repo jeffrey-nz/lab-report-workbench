@@ -280,3 +280,115 @@
   .step-n { display: none; }
   .step { padding: 6px 8px; }
 }
+
+/* ---------- the figures in a report ---------- */
+.fig-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: var(--gap);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.fig-tab {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  overflow: hidden;
+}
+.fig-tab > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  padding: 7px 12px;
+  font-size: 13.5px;
+}
+.fig-tab:hover { border-color: var(--line-2); }
+.fig-tab.is-on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.fig-tab.is-on > button { color: var(--accent-2); font-weight: 500; }
+.fig-tab-count {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+.fig-tab.is-on .fig-tab-count { background: var(--surface); color: var(--accent-2); }
+.fig-tab-close {
+  border: 0;
+  background: none;
+  color: var(--accent-2);
+  padding: 0 9px 0 3px;
+  font-size: 15px;
+  line-height: 1;
+}
+.fig-tab-close:hover { color: var(--err); }
+.fig-tab-add {
+  border: 1px dashed var(--line-2);
+  background: none;
+  color: var(--ink-2);
+  border-radius: var(--r-sm);
+  padding: 7px 12px;
+  font-size: 13.5px;
+}
+.fig-tab-add:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ---------- suggested figures ---------- */
+.suggestions { display: flex; flex-direction: column; gap: 6px; }
+.suggestion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  padding: 9px 11px;
+  transition: border-color .13s ease, background .13s ease;
+}
+.suggestion:hover { border-color: var(--accent); background: var(--accent-soft); }
+.suggestion-title { font-size: 13.5px; font-weight: 500; }
+.suggestion-detail { font-size: var(--t-sm); color: var(--ink-3); }
+.suggestion:hover .suggestion-detail { color: var(--accent-2); }
+
+.suggest-block > summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+  padding: 2px 0;
+}
+.suggest-block > summary::-webkit-details-marker { display: none; }
+.suggest-block > summary::after {
+  content: "▸";
+  color: var(--ink-3);
+  font-size: 11px;
+  transition: transform .15s ease;
+}
+.suggest-block[open] > summary::after { transform: rotate(90deg); }
+.suggest-block > summary:hover .legend { color: var(--ink); }
+.suggest-block .suggestions { max-height: 44vh; overflow-y: auto; overscroll-behavior: contain; }
+
+.more-suggestions { margin-top: 10px; }
+.more-suggestions summary {
+  cursor: pointer;
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+  padding: 4px 0;
+}
+.more-suggestions summary:hover { color: var(--ink); }
+.more-suggestions .suggestions { margin-top: 8px; }

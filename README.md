@@ -32,6 +32,13 @@ Drop in the spreadsheet you were given and it will:
 5. **Draft the words.** A figure legend and a results paragraph carrying the real
    numbers, in the structure these are marked on. They are a starting point to
    rewrite, not something to submit.
+6. **Build the whole results section, not one figure.** It reads the workbook and
+   proposes the figures a report would actually contain — a figure per tissue
+   with protein above mRNA, time courses collected together, one measurement
+   compared across the tissues it was made in. Take them one at a time, or build
+   them all at once; each figure keeps its own panels, groups, options and
+   drafted text, and *Save everything* writes every figure plus one statistics
+   file and one draft.
 
 It also exports a **tidy CSV** and a **Prism-ready table** (one column per group,
 one row per animal) if you would rather do the graphs in GraphPad yourself.
@@ -66,6 +73,8 @@ which is what Prism reports as *Šídák's multiple comparisons test*.
   `{ do, why }` items grouped by section.
 - **A different workbook layout:** `src/lib/parse.js` finds blocks by shape. The
   regular expressions at the top (`ID_RE`, `STAT_RE`, `DIET_RE`, …) are the knobs.
+- **Which figures get proposed:** `src/lib/suggest.js`. It works from the shape of
+  the data — tissues, assays, time courses — not from this course's sections.
 - **Different colours:** `styles/tokens.css` holds the interface palette;
   `src/lib/charts.js` holds the categorical slots and the one-hue ordinal ramps.
   `planEncoding()` is where the figure decides what carries what — read it first
@@ -87,7 +96,7 @@ src/
   labels.js             how a measurement is named, everywhere
   exports.js            PNG, SVG, CSV, Markdown, "save everything"
   views/                one module per step
-  lib/                  parse, stats, analyse, charts, demo — no DOM
+  lib/                  parse, stats, analyse, charts, suggest, demo — no DOM
   data/checklist.js     the pre-submission checklist
 ```
 
@@ -106,7 +115,7 @@ python3 -m http.server 8000     # then open http://localhost:8000
 ## Tests
 
 ```sh
-node --test tests/              # 145 unit tests, no dependencies
+node --test tests/              # 183 unit tests, no dependencies
 ```
 
 The suite covers four things:

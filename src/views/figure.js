@@ -3,12 +3,80 @@
 
 import { el, $, emptyState, setChildren } from "../dom.js";
 import * as St from "../state.js";
-import { state, SIZES, figureExtent, layoutThatFits, A4_TEXT_MM } from "../state.js";
+import { state, SIZES, figureExtent, layoutThatFits, A4_TEXT_MM,
+         figureNumber, suggestions } from "../state.js";
 import { groupColors } from "../lib/charts.js";
 import { seriesNames, panelName, panelHint } from "../labels.js";
 import { saveFigurePng, copyFigure, saveFigureSvg, saveEverything } from "../exports.js";
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+/** One tab per figure in the report; the letters inside each are its panels. */
+function figureTabs() {
+  return el("div", { class: "fig-tabs", role: "tablist", "aria-label": "Figures in this report" },
+    ...state.figures.map((fig, i) => {
+      const active = fig.id === state.activeId;
+      return el("div", { class: `fig-tab${active ? " is-on" : ""}` },
+        el("button", {
+          type: "button", role: "tab", "aria-selected": String(active),
+          "data-focus-key": `fig:${fig.id}`,
+          onclick: () => St.switchFigure(fig.id)
+        }, `Figure ${i + 1}`,
+          el("span", { class: "fig-tab-count" }, String(fig.chosen.length))),
+        active && state.figures.length > 1
+          ? el("button", {
+              type: "button", class: "fig-tab-close",
+              "aria-label": `Remove figure ${i + 1}`, title: "Remove this figure",
+              onclick: () => St.removeFigure(fig.id)
+            }, "×")
+          : null);
+    }),
+    el("button", {
+      type: "button", class: "fig-tab-add", "data-focus-key": "fig:add",
+      title: "Add an empty figure", onclick: () => St.addFigure()
+    }, "+ Add"),
+    state.figures.length > 1
+      ? el("button", {
+          type: "button", class: "btn btn--quiet", style: "margin-left:auto",
+          onclick: () => St.duplicateFigure()
+        }, "Duplicate")
+      : null);
+}
+
+/** Whole figures the workbook suggests, so a results section is a few clicks. */
+function suggestionPanel() {
+  const all = suggestions();
+  if (!all.length) return null;
+  const primary = all.filter((s) => s.kind !== "across");
+  const across = all.filter((s) => s.kind === "across");
+
+  const button = (sug) => el("button", {
+    type: "button", class: "suggestion",
+    onclick: () => St.applySuggestion(sug)
+  }, el("span", { class: "suggestion-title" }, sug.title),
+     el("span", { class: "suggestion-detail" }, sug.detail));
+
+  // Wide open on a fresh workbook, folded away once a report has been built
+  const fresh = state.figures.length === 1 && state.chosen.length <= 1;
+  return el("details", { class: "suggest-block", open: fresh },
+    el("summary", {},
+      el("span", { class: "legend" }, "Suggested figures"),
+      el("span", { class: "note" }, `${primary.length} ready to use`)),
+    el("p", { class: "note", style: "margin:8px 0 10px" },
+      "Each one fills the figure you are on."),
+    el("div", { class: "suggestions" }, ...primary.map(button)),
+    across.length
+      ? el("details", { class: "more-suggestions" },
+          el("summary", {}, `Compare one measurement across tissues (${across.length})`),
+          el("div", { class: "suggestions" }, ...across.map(button)))
+      : null,
+    primary.length > 1
+      ? el("button", {
+          type: "button", class: "btn btn--ghost", style: "margin-top:12px;width:100%",
+          onclick: () => St.buildReport(primary)
+        }, `Build all ${primary.length} as a results section`)
+      : null);
+}
 
 /* ---------- pickers ---------- */
 
@@ -175,12 +243,20 @@ function options() {
         el("option", { value: g, selected: g === state.control }, g)))),
 
     el("div", { class: "field" },
-      el("label", { class: "field-label", for: "opt-fignum" }, "Figure number"),
-      el("input", {
-        type: "number", id: "opt-fignum", min: 1, max: 40, value: state.figNumber,
-        "data-focus-key": "opt:fignum",
-        oninput: (e) => St.setFigureOption({ figNumber: +e.target.value || 1 })
-      })));
+      el("span", { class: "field-label" }, "Position in the report"),
+      el("div", { class: "btn-group" },
+        el("button", {
+          type: "button", class: "btn btn--icon", "data-focus-key": "fig:up",
+          disabled: figureNumber() <= 1, "aria-label": "Move this figure earlier",
+          onclick: () => St.moveFigure(state.activeId, -1)
+        }, "↑"),
+        el("button", {
+          type: "button", class: "btn btn--icon", "data-focus-key": "fig:down",
+          disabled: figureNumber() >= state.figures.length,
+          "aria-label": "Move this figure later",
+          onclick: () => St.moveFigure(state.activeId, 1)
+        }, "↓"),
+        el("span", { class: "note" }, `Figure ${figureNumber()} of ${state.figures.length}`))));
 }
 
 /* ---------- preview ---------- */
@@ -195,7 +271,7 @@ function preview() {
 
   return el("div", { class: "card builder-main" },
     el("div", { class: "card-head" },
-      el("h3", {}, `Figure ${state.figNumber}`),
+      el("h3", {}, `Figure ${figureNumber()}`),
       el("span", { class: "note" }, extent
         ? `${extent.mmWide} × ${extent.mmTall} mm at 300 dpi`
         : "Drawn on white for pasting into your report")),
@@ -224,7 +300,9 @@ function preview() {
       el("button", { type: "button", class: "btn btn--ghost", onclick: saveEverything },
         "Save everything")),
     el("p", { class: "note", style: "margin-top:10px" },
-      "Save everything writes the figure, the statistics, the drafted text and a Prism table."));
+      state.figures.length > 1
+        ? `Save everything writes all ${state.figures.length} figures, one statistics file, the drafted text and a Prism table — your browser will ask to allow several downloads.`
+        : "Save everything writes the figure, the statistics, the drafted text and a Prism table."));
 }
 
 export const view = {
@@ -238,8 +316,10 @@ export const view = {
       el("div", { class: "view-head" },
         el("h2", {}, "Build the figure"),
         el("p", {}, "Tick the measurements to become panels and the groups to compare. Panels are drawn into one image, lettered A, B, C, so a multi-panel figure exports as a single file.")),
+      figureTabs(),
       el("div", { class: "builder" },
         el("div", { class: "builder-side" },
+          el("div", { class: "card" }, suggestionPanel()),
           el("div", { class: "card" }, seriesPicker()),
           el("div", { class: "card" }, groupPicker()),
           panelList() ? el("div", { class: "card" }, panelList()) : null,

@@ -1,7 +1,7 @@
 /* stats.js — the full statistical output for every panel in the figure. */
 
 import { el, emptyState, setChildren } from "../dom.js";
-import { state } from "../state.js";
+import { state, figureNumber } from "../state.js";
 import { seriesNames, panelName, panelHint } from "../labels.js";
 import { fmtP, stars } from "../lib/stats.js";
 import { saveStatsCsv } from "../exports.js";
@@ -143,8 +143,14 @@ export const view = {
     const names = seriesNames();
     setChildren(root, 
       el("div", { class: "view-head" },
-        el("h2", {}, "Statistics"),
-        el("p", {}, "The design of your selection chooses the test: animals measured more than once are treated as repeated measures rather than as independent samples. The overall test is reported first, the multiple comparisons after it.")),
+        el("h2", {}, state.figures.length > 1
+          ? `Statistics for Figure ${figureNumber()}`
+          : "Statistics"),
+        el("p", {}, "The design of your selection chooses the test: animals measured more than once are treated as repeated measures rather than as independent samples. The overall test is reported first, the multiple comparisons after it."),
+        state.figures.length > 1
+          ? el("p", { class: "note", style: "margin-top:8px" },
+              `Switch figures on the Figure step. The statistics file covers all ${state.figures.length}.`)
+          : null),
       el("div", { class: "stack" },
         ...state.panels.map((p, i) => panelCard(p, i, names)),
         el("div", { class: "btn-group" },

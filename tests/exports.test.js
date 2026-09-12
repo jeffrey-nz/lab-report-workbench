@@ -1,8 +1,9 @@
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
 import { parseWorkbook, seriesIndex } from "../src/lib/parse.js";
-import { state, loadRecords, setSeries, setGroups, setFigureOption,
-         layoutThatFits, figureExtent, A4_TEXT_MM, SIZES } from "../src/state.js";
+import { state, loadRecords, setSeries, setGroups, setFigureOption, addFigure,
+         switchFigure, removeFigure, buildReport, suggestions, allFigures,
+         figureNumber, layoutThatFits, figureExtent, A4_TEXT_MM, SIZES } from "../src/state.js";
 import { csv, tidyRows, prismRows, statsRows, draftBundle } from "../src/exports.js";
 import { allSheets } from "./fixtures.js";
 
@@ -80,22 +81,24 @@ describe("Prism export", () => {
 describe("statistics export", () => {
   const rows = statsRows();
 
-  test("names the panel, the test and the source of every line", () => {
-    assert.deepEqual(rows[0].slice(0, 4), ["panel", "measurement", "test", "source"]);
+  test("names the figure, the panel, the test and the source of every line", () => {
+    assert.deepEqual(rows[0].slice(0, 5),
+      ["figure", "panel", "measurement", "test", "source"]);
     assert.ok(rows.length > 1);
-    assert.equal(rows[1][0], "A");
+    assert.equal(rows[1][0], 1, "the first line belongs to figure 1");
+    assert.equal(rows[1][1], "A");
   });
 
   test("carries degrees of freedom for every test line", () => {
     for (const r of rows.slice(1)) {
-      if (/multiple comparisons/.test(r[2]) || /ANOVA|t-test/.test(r[2]))
-        assert.ok(String(r[4]).length > 0, `missing df: ${r.join(" | ")}`);
+      if (/multiple comparisons/.test(r[3]) || /ANOVA|t-test/.test(r[3]))
+        assert.ok(String(r[5]).length > 0, `missing df: ${r.join(" | ")}`);
     }
   });
 
   test("reports the multiple comparisons after the overall test", () => {
-    const overall = rows.findIndex((r) => /ANOVA|t-test/.test(r[2]));
-    const posthoc = rows.findIndex((r) => /multiple comparisons/.test(r[2]));
+    const overall = rows.findIndex((r) => /ANOVA|t-test/.test(r[3]));
+    const posthoc = rows.findIndex((r) => /multiple comparisons/.test(r[3]));
     assert.ok(overall > 0 && posthoc > overall, "ordering must match how it is reported");
   });
 
@@ -110,7 +113,7 @@ describe("draft bundle", () => {
   test("carries the legend, the results and the statistics", () => {
     assert.match(text, /FIGURE \d+ LEGEND/);
     assert.match(text, /RESULTS PARAGRAPH/);
-    assert.match(text, /STATISTICS, WRITTEN OUT/);
+    assert.match(text, /STATISTICS/);
   });
 
   test("says plainly that it needs rewriting", () => {
@@ -122,9 +125,9 @@ describe("draft bundle", () => {
   });
 
   test("prefers an edited draft over the generated one", () => {
-    state.edits[`legend-${state.figNumber}`] = "My own wording.";
+    state.edits[`legend:${state.activeId}`] = "My own wording.";
     assert.match(draftBundle(), /My own wording\./);
-    delete state.edits[`legend-${state.figNumber}`];
+    delete state.edits[`legend:${state.activeId}`];
   });
 });
 
@@ -157,6 +160,71 @@ describe("fitting the printed page", () => {
     setSeries([state.series[0].key]);
     setFigureOption({ cols: 1, size: "comfortable" });
     assert.ok(figureExtent().mmWide <= A4_TEXT_MM);
+  });
+});
+
+describe("a report made of several figures", () => {
+  test("loading a workbook starts one figure", () => {
+    assert.equal(state.figures.length, 1);
+    assert.equal(figureNumber(), 1);
+  });
+
+  test("adding a figure switches to it and leaves the first intact", () => {
+    const first = state.activeId;
+    const firstPanels = [...state.chosen];
+    const added = addFigure();
+    assert.equal(state.activeId, added.id);
+    assert.equal(figureNumber(), 2);
+    switchFigure(first);
+    assert.deepEqual(state.chosen, firstPanels, "the first figure was disturbed");
+  });
+
+  test("each figure keeps its own panels and options", () => {
+    const a = state.activeId;
+    setFigureOption({ cols: 3, errorBars: "sd" });
+    const b = addFigure();
+    setFigureOption({ cols: 1, errorBars: "sem" });
+    switchFigure(a);
+    assert.equal(state.cols, 3);
+    assert.equal(state.errorBars, "sd");
+    switchFigure(b.id);
+    assert.equal(state.cols, 1);
+    assert.equal(state.errorBars, "sem");
+  });
+
+  test("removing a figure keeps at least one", () => {
+    while (state.figures.length > 1) removeFigure(state.figures[state.figures.length - 1].id);
+    removeFigure(state.activeId);
+    assert.equal(state.figures.length, 1, "the last figure must not be removable");
+  });
+
+  test("nothing untestable is ever suggested", () => {
+    const lonely = state.series.filter((s) => s.groups.length < 2);
+    assert.ok(lonely.length > 0, "the fixtures should contain a single-group measurement");
+    const suggested = new Set(suggestions().flatMap((s) => s.keys));
+    for (const s of lonely)
+      assert.ok(!suggested.has(s.key), `${s.analyte} has one group and cannot be compared`);
+  });
+
+  test("building a report gives every suggestion its own figure", () => {
+    const primary = suggestions().filter((s) => s.kind !== "across");
+    buildReport(primary);
+    assert.equal(state.figures.length, primary.length);
+    const built = allFigures();
+    for (const { number, panels, svg } of built) {
+      assert.ok(panels.length > 0, `figure ${number} has no panels`);
+      assert.match(svg, /^<svg/, `figure ${number} was not drawn`);
+      for (const p of panels)
+        assert.equal(p.analysis.ok, true,
+          `figure ${number} panel has no usable test: ${p.analysis.reason}`);
+    }
+  });
+
+  test("every figure reaches the exports", () => {
+    const numbers = [...new Set(statsRows().slice(1).map((r) => r[0]))];
+    assert.equal(numbers.length, state.figures.length, "a figure is missing from the statistics");
+    for (let n = 1; n <= state.figures.length; n++)
+      assert.match(draftBundle(), new RegExp(`FIGURE ${n} LEGEND`), `figure ${n} has no draft`);
   });
 });
 
